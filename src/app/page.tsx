@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Navbar } from '@/components/Navbar';
 import { TickerBar } from '@/components/TickerBar';
 import { CoinHeader } from '@/components/CoinHeader';
@@ -48,6 +48,18 @@ export default function SurveillancePage() {
   const [watchlist, setWatchlist] = useState<WatchlistCoin[]>([]);
   const [quickTickers, setQuickTickers] = useState<{ [symbol: string]: { price: number; change24h: number } }>({});
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Persistent live Binance Futures reference to prevent stale server overrides
+  const liveBinanceTickerRef = useRef<{
+    symbol: string;
+    price: number;
+    priceChange24h: number;
+    priceChangePercent24h: number;
+    high24h: number;
+    low24h: number;
+    quoteVolume24h: number;
+    timestamp: number;
+  } | null>(null);
 
   // Load watchlist from localStorage on mount
   useEffect(() => {
@@ -104,6 +116,17 @@ export default function SurveillancePage() {
         throw new Error(`Surveillance request failed with status ${res.status}`);
       }
       const data: SurveillanceReport = await res.json();
+
+      // Ensure live Binance Futures ticker is NEVER overwritten by stale server fallback!
+      const cleanSym = coinSymbol.toUpperCase().replace(/USDT$/, '');
+      if (liveBinanceTickerRef.current && liveBinanceTickerRef.current.symbol === cleanSym) {
+        data.ticker.price = liveBinanceTickerRef.current.price;
+        data.ticker.priceChangePercent24h = liveBinanceTickerRef.current.priceChangePercent24h;
+        data.ticker.high24h = liveBinanceTickerRef.current.high24h;
+        data.ticker.low24h = liveBinanceTickerRef.current.low24h;
+        data.ticker.quoteVolume24h = liveBinanceTickerRef.current.quoteVolume24h;
+      }
+
       setReport(data);
 
       setQuickTickers((prev) => ({
@@ -179,6 +202,17 @@ export default function SurveillancePage() {
           const lowPrice = parseFloat(d.lowPrice);
           const quoteVolume = parseFloat(d.quoteVolume);
 
+          liveBinanceTickerRef.current = {
+            symbol: clean,
+            price: lastPrice,
+            priceChange24h: priceChange,
+            priceChangePercent24h: priceChangePercent,
+            high24h: highPrice,
+            low24h: lowPrice,
+            quoteVolume24h: quoteVolume,
+            timestamp: Date.now(),
+          };
+
           setReport((prev) => {
             if (!prev) return prev;
             return {
@@ -199,6 +233,7 @@ export default function SurveillancePage() {
     };
 
     syncDirectFutures();
+    const futuresTimer = setInterval(syncDirectFutures, 1500);
 
     // 2. Real-Time Binance Futures WebSocket
     let ws: WebSocket | null = null;
@@ -213,6 +248,14 @@ export default function SurveillancePage() {
             const priceChangePercent = parseFloat(d.P || '0');
             const highPrice = parseFloat(d.h || '0');
             const lowPrice = parseFloat(d.l || '0');
+
+            if (liveBinanceTickerRef.current && liveBinanceTickerRef.current.symbol === clean) {
+              liveBinanceTickerRef.current.price = lastPrice;
+              liveBinanceTickerRef.current.priceChangePercent24h = priceChangePercent;
+              if (highPrice > 0) liveBinanceTickerRef.current.high24h = highPrice;
+              if (lowPrice > 0) liveBinanceTickerRef.current.low24h = lowPrice;
+              liveBinanceTickerRef.current.timestamp = Date.now();
+            }
 
             setReport((prev) => {
               if (!prev) return prev;
@@ -234,6 +277,7 @@ export default function SurveillancePage() {
 
     return () => {
       isCancelled = true;
+      clearInterval(futuresTimer);
       if (ws) ws.close();
     };
   }, [selectedCoin]);

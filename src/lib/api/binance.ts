@@ -110,7 +110,40 @@ export async function fetchBinanceTicker(symbol: string): Promise<MarketTicker |
     }
   } catch (err) {}
 
-  // 3. Try Bybit Spot Ticker (Worldwide unrestricted)
+  // 3. Try Bybit Linear / Futures Ticker (Worldwide unrestricted, includes BARD and all perp contracts!)
+  try {
+    const resBybitLinear = await fetch(`https://api.bybit.com/v5/market/tickers?category=linear&symbol=${binancePair}`, {
+      next: { revalidate: 3 },
+      headers: { 'User-Agent': 'Mozilla/5.0' },
+    });
+
+    if (resBybitLinear.ok) {
+      const d = await resBybitLinear.json();
+      const item = d.result?.list?.[0];
+      if (item && parseFloat(item.lastPrice || '0') > 0) {
+        const lastPrice = parseFloat(item.lastPrice);
+        const bidPrice = parseFloat(item.bid1Price || item.lastPrice);
+        const askPrice = parseFloat(item.ask1Price || item.lastPrice);
+        const spreadPercent = askPrice > 0 ? ((askPrice - bidPrice) / askPrice) * 100 : 0.05;
+
+        return {
+          symbol: cleanSymbol,
+          price: lastPrice,
+          priceChange24h: parseFloat(item.prevPrice24h ? String(lastPrice - parseFloat(item.prevPrice24h)) : '0'),
+          priceChangePercent24h: parseFloat(item.price24hPcnt || '0') * 100,
+          high24h: parseFloat(item.highPrice24h || item.lastPrice),
+          low24h: parseFloat(item.lowPrice24h || item.lastPrice),
+          volume24h: parseFloat(item.volume24h || '0'),
+          quoteVolume24h: parseFloat(item.turnover24h || '0'),
+          bidPrice,
+          askPrice,
+          spreadPercent: Math.max(0, spreadPercent),
+        };
+      }
+    }
+  } catch (err) {}
+
+  // 4. Try Bybit Spot Ticker (Worldwide unrestricted)
   try {
     const resBybit = await fetch(`https://api.bybit.com/v5/market/tickers?category=spot&symbol=${pair}`, {
       next: { revalidate: 10 },
@@ -190,7 +223,23 @@ export async function fetchBinanceDepth(symbol: string): Promise<OrderBookData |
     }
   } catch (err) {}
 
-  // 3. Try Bybit Orderbook
+  // 4. Try Bybit Linear / Futures Orderbook (Worldwide unrestricted, includes BARD & all futures)
+  try {
+    const resBybitLinear = await fetch(`https://api.bybit.com/v5/market/orderbook?category=linear&symbol=${binancePair}&limit=20`, {
+      next: { revalidate: 3 },
+      headers: { 'User-Agent': 'Mozilla/5.0' },
+    });
+    if (resBybitLinear.ok) {
+      const d = await resBybitLinear.json();
+      const b = (d.result?.b || []).map((x: any) => [x[0], x[1]]);
+      const a = (d.result?.a || []).map((x: any) => [x[0], x[1]]);
+      if (b.length && a.length) {
+        return parseDepth(b, a);
+      }
+    }
+  } catch (err) {}
+
+  // 5. Try Bybit Spot Orderbook
   try {
     const resBybit = await fetch(`https://api.bybit.com/v5/market/orderbook?category=spot&symbol=${pair}&limit=20`, {
       next: { revalidate: 10 },
