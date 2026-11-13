@@ -314,7 +314,11 @@ export default function SurveillancePage() {
                 <RiskRadar risk={report.risk} />
 
                 {/* TradingView Chart right inside Overview */}
-                <TradingViewChart symbol={report.coin.symbol} />
+                <TradingViewChart
+                  symbol={report.coin.symbol}
+                  isBinanceAvailable={report.dataSource.binance}
+                  dexPairs={report.dexPairs}
+                />
 
                 {/* Futures Highlight Card if available */}
                 {report.futures.hasFutures && (
@@ -334,7 +338,11 @@ export default function SurveillancePage() {
 
             {activeTab === 'tradingview' && (
               <div className="space-y-6">
-                <TradingViewChart symbol={report.coin.symbol} />
+                <TradingViewChart
+                  symbol={report.coin.symbol}
+                  isBinanceAvailable={report.dataSource.binance}
+                  dexPairs={report.dexPairs}
+                />
               </div>
             )}
 
