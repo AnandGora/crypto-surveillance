@@ -171,6 +171,77 @@ export interface CryptoNewsItem {
   sentiment: 'Bullish' | 'Bearish' | 'Neutral';
 }
 
+// CoinGlass-Style Deep Derivatives & Key Price Levels
+export interface LiquidationCluster {
+  price: number;
+  percentFromCurrent: number;
+  volumeUsd: number;
+  intensityLabel: string;
+}
+
+export interface LiquidationData {
+  shortCluster: LiquidationCluster;
+  longCluster: LiquidationCluster;
+  totalLiquidations24hUsd: number;
+  longLiquidationUsd: number;
+  shortLiquidationUsd: number;
+  longLiquidationPercent: number;
+  shortLiquidationPercent: number;
+}
+
+export interface MarketExchangeRow {
+  exchange: string;
+  pair: string;
+  price: number;
+  change24h: number;
+  openInterestUsd: number;
+  oiChange24h: number;
+  fundingRate: number;
+  volume24h: number;
+  longLiqUsd: number;
+  shortLiqUsd: number;
+}
+
+export interface AiMarketNarrative {
+  title: string;
+  summary: string;
+  drivers: {
+    label: string;
+    value: string;
+    status: 'bullish' | 'bearish' | 'neutral';
+    detail: string;
+  }[];
+  whatToWatchNext: string;
+}
+
+export interface AtAGlanceStats {
+  dailyRsi: number;
+  weeklyRsi: number;
+  sma20dDeviationPercent: number;
+  volatility30dPercent: number;
+  spotTurnoverPercent: number;
+  topExchangeByVolume: string;
+  spotNetInflow24hUsd: number;
+  futuresNetInflow24hUsd: number;
+  oiToMarketCapPercent: number;
+  tokenUnlocks?: {
+    nextDate: string;
+    amountFormatted: string;
+    amountUsdFormatted: string;
+    fullyUnlockedDate: string;
+  };
+}
+
+export interface HistoricalPriceRow {
+  date: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  changePercent: number;
+  volumeUsd: number;
+}
+
 export interface SurveillanceReport {
   coin: {
     id: string;
@@ -203,6 +274,12 @@ export interface SurveillanceReport {
     github: boolean;
     alternativeMe: boolean;
   };
+  // Extended Deep Data
+  liquidationData: LiquidationData;
+  aiNarrative: AiMarketNarrative;
+  marketExchanges: MarketExchangeRow[];
+  atAGlance: AtAGlanceStats;
+  historicalPrices: HistoricalPriceRow[];
 }
 
 export interface WatchlistCoin {

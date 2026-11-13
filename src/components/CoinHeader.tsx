@@ -1,16 +1,17 @@
 'use client';
 
 import React from 'react';
-import { TrendingUp, TrendingDown, Bookmark, BookmarkCheck, ExternalLink, ShieldCheck, Zap } from 'lucide-react';
+import { TrendingUp, TrendingDown, Bookmark, BookmarkCheck, ExternalLink, ShieldCheck, Zap, Bot } from 'lucide-react';
 import { SurveillanceReport } from '@/types/crypto';
 
 interface CoinHeaderProps {
   report: SurveillanceReport;
   isWatchlisted: boolean;
   onToggleWatchlist: () => void;
+  onOpenAiReview?: () => void;
 }
 
-export function CoinHeader({ report, isWatchlisted, onToggleWatchlist }: CoinHeaderProps) {
+export function CoinHeader({ report, isWatchlisted, onToggleWatchlist, onOpenAiReview }: CoinHeaderProps) {
   const { coin, ticker, risk, dataSource, futures } = report;
   const isPositive = ticker.priceChangePercent24h >= 0;
 
@@ -109,27 +110,41 @@ export function CoinHeader({ report, isWatchlisted, onToggleWatchlist }: CoinHea
             </div>
           </div>
 
-          {/* Watchlist toggle */}
-          <button
-            onClick={onToggleWatchlist}
-            className={`flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold transition-all ${
-              isWatchlisted
-                ? 'border-cyan-500 bg-cyan-950/60 text-cyan-300 shadow-lg shadow-cyan-500/10'
-                : 'border-zinc-800 bg-zinc-900 text-zinc-300 hover:border-zinc-700 hover:text-white'
-            }`}
-          >
-            {isWatchlisted ? (
-              <>
-                <BookmarkCheck className="h-4 w-4 text-cyan-400" />
-                <span>On Radar</span>
-              </>
-            ) : (
-              <>
-                <Bookmark className="h-4 w-4" />
-                <span>Track Coin</span>
-              </>
+          {/* Action buttons */}
+          <div className="flex items-center gap-2">
+            {onOpenAiReview && (
+              <button
+                onClick={onOpenAiReview}
+                className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-400 via-teal-400 to-indigo-500 px-4 py-2.5 text-sm font-bold text-black shadow-lg shadow-cyan-500/20 transition-all hover:scale-105 active:scale-95"
+                title="Export surveillance data for ChatGPT, Gemini, and Claude"
+              >
+                <Bot className="h-4 w-4" />
+                <span>AI Review & Export</span>
+              </button>
             )}
-          </button>
+
+            {/* Watchlist toggle */}
+            <button
+              onClick={onToggleWatchlist}
+              className={`flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold transition-all ${
+                isWatchlisted
+                  ? 'border-cyan-500 bg-cyan-950/60 text-cyan-300 shadow-lg shadow-cyan-500/10'
+                  : 'border-zinc-800 bg-zinc-900 text-zinc-300 hover:border-zinc-700 hover:text-white'
+              }`}
+            >
+              {isWatchlisted ? (
+                <>
+                  <BookmarkCheck className="h-4 w-4 text-cyan-400" />
+                  <span>On Radar</span>
+                </>
+              ) : (
+                <>
+                  <Bookmark className="h-4 w-4" />
+                  <span>Track Coin</span>
+                </>
+              )}
+            </button>
+          </div>
         </div>
       </div>
 

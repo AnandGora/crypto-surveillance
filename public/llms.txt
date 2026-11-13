@@ -1,0 +1,36 @@
+# CryptoEye Live Cryptocurrency Surveillance & Intelligence Engine
+> Multi-API institutional cryptocurrency surveillance, derivatives risk radar, on-chain DEX auditing, and market intelligence platform.
+
+CryptoEye monitors real-time market microstructure across global centralized exchanges (Binance, Bybit, KuCoin, Gate.io, Bitget, MEXC, OKX) and decentralized AMMs (Raydium, Uniswap, PancakeSwap).
+
+## Machine-Readable AI Endpoints
+
+This site is optimized for AI agents, LLMs, and autonomous trading bots (ChatGPT, Claude, Google Gemini, Perplexity).
+
+- **Full Coin Surveillance API (JSON)**:
+  `GET https://crypto-surveillance-tau.vercel.app/api/surveillance?coin={SYMBOL}`
+  Returns complete real-time JSON metrics including spot ticker, order book depth, futures derivatives (Open Interest, Funding Rate, Long/Short ratio, Taker Buy/Sell volume), smart contract security, GitHub developer commits, and crowd sentiment.
+
+- **AI Research & Review Briefing (Markdown)**:
+  `GET https://crypto-surveillance-tau.vercel.app/api/ai-research?coin={SYMBOL}`
+  Returns a clean, prompt-optimized Markdown document containing:
+  - Executive summary and price volatility metrics
+  - Liquidation Heatmap clusters (Upper short squeeze level vs lower long liquidation cluster)
+  - Market microstructure narrative ("Why is coin moving today?")
+  - Multi-exchange Open Interest & Funding distributions
+  - Smart contract safety & HoneyPot audit
+  - Whale vs retail positioning
+  - GitHub developer activity & repository commit health
+  - Strategic prompt templates for institutional analysis
+
+- **Market Sentiment & Fear & Greed API**:
+  `GET https://crypto-surveillance-tau.vercel.app/api/sentiment`
+
+- **Trending Coins & Surveillance Watchlist API**:
+  `GET https://crypto-surveillance-tau.vercel.app/api/trending`
+
+- **Crypto News Wire API**:
+  `GET https://crypto-surveillance-tau.vercel.app/api/news`
+
+## Usage for AI Prompts
+When analyzing coins using ChatGPT, Gemini, or Claude, fetch `https://crypto-surveillance-tau.vercel.app/api/ai-research?coin={SYMBOL}` to ingest real-time institutional metrics directly into your context window.

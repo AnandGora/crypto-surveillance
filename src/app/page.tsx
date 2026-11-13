@@ -16,8 +16,25 @@ import { SentimentGauge } from '@/components/SentimentGauge';
 import { NewsWire } from '@/components/NewsWire';
 import { WatchlistDrawer } from '@/components/WatchlistDrawer';
 import { AnomalyAlerts } from '@/components/AnomalyAlerts';
+import { CoinGlassIntelligence } from '@/components/CoinGlassIntelligence';
+import { AiReviewModal } from '@/components/AiReviewModal';
 import { SurveillanceReport, CryptoNewsItem, WatchlistCoin } from '@/types/crypto';
-import { ShieldCheck, Layers, Compass, Code, HeartHandshake, Newspaper, RefreshCw, AlertCircle, Zap, Info, BarChart3, LineChart } from 'lucide-react';
+import {
+  ShieldCheck,
+  Layers,
+  Compass,
+  Code,
+  HeartHandshake,
+  Newspaper,
+  RefreshCw,
+  AlertCircle,
+  Zap,
+  Info,
+  BarChart3,
+  LineChart,
+  Flame,
+  Bot,
+} from 'lucide-react';
 
 export default function SurveillancePage() {
   const [selectedCoin, setSelectedCoin] = useState<string>('BTC');
@@ -26,7 +43,8 @@ export default function SurveillancePage() {
   const [news, setNews] = useState<CryptoNewsItem[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isNewsLoading, setIsNewsLoading] = useState<boolean>(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'futures' | 'tradingview' | 'chart' | 'depth' | 'dex' | 'fundamentals' | 'dev' | 'sentiment' | 'news'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'coinglass' | 'futures' | 'tradingview' | 'chart' | 'depth' | 'dex' | 'fundamentals' | 'dev' | 'sentiment' | 'news'>('overview');
+  const [isAiModalOpen, setIsAiModalOpen] = useState<boolean>(false);
   const [refreshInterval, setRefreshInterval] = useState<number>(3); // 3s fast default
   const [isWatchlistOpen, setIsWatchlistOpen] = useState<boolean>(false);
   const [watchlist, setWatchlist] = useState<WatchlistCoin[]>([]);
@@ -180,6 +198,7 @@ export default function SurveillancePage() {
               report={report}
               isWatchlisted={isCurrentWatchlisted}
               onToggleWatchlist={handleToggleWatchlist}
+              onOpenAiReview={() => setIsAiModalOpen(true)}
             />
 
             {/* Anomaly Alerts Banner */}
@@ -197,6 +216,18 @@ export default function SurveillancePage() {
               >
                 <ShieldCheck className="h-4 w-4" />
                 <span>Overview & Threat Radar</span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('coinglass')}
+                className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-all whitespace-nowrap ${
+                  activeTab === 'coinglass'
+                    ? 'bg-gradient-to-r from-amber-500 to-rose-500 text-black shadow-lg shadow-amber-500/20'
+                    : 'bg-zinc-900/60 text-zinc-400 hover:text-white hover:bg-zinc-800'
+                }`}
+              >
+                <Flame className="h-4 w-4 text-amber-400" />
+                <span>CoinGlass Deep Intel</span>
               </button>
 
               <button
@@ -306,12 +337,26 @@ export default function SurveillancePage() {
                 <Newspaper className="h-4 w-4" />
                 <span>News Wire</span>
               </button>
+
+              <button
+                onClick={() => setIsAiModalOpen(true)}
+                className="flex items-center gap-1.5 rounded-xl border border-cyan-800 bg-cyan-950/80 px-3.5 py-2 text-xs font-bold text-cyan-300 hover:bg-cyan-900 shadow-md shadow-cyan-500/10 transition-all whitespace-nowrap ml-auto"
+              >
+                <Bot className="h-4 w-4 text-cyan-400" />
+                <span>AI Exporter (ChatGPT/Claude/Gemini)</span>
+              </button>
             </div>
 
             {/* Tab Contents */}
             {activeTab === 'overview' && (
               <div className="space-y-6">
                 <RiskRadar risk={report.risk} />
+
+                {/* CoinGlass Deep Intelligence & Liquidation Heatmap */}
+                <CoinGlassIntelligence
+                  report={report}
+                  onOpenAiModal={() => setIsAiModalOpen(true)}
+                />
 
                 {/* TradingView Chart right inside Overview */}
                 <TradingViewChart
@@ -333,6 +378,15 @@ export default function SurveillancePage() {
                     symbol={report.coin.symbol}
                   />
                 </div>
+              </div>
+            )}
+
+            {activeTab === 'coinglass' && (
+              <div className="space-y-6">
+                <CoinGlassIntelligence
+                  report={report}
+                  onOpenAiModal={() => setIsAiModalOpen(true)}
+                />
               </div>
             )}
 
@@ -422,6 +476,15 @@ export default function SurveillancePage() {
         onSelectCoin={(sym) => setSelectedCoin(sym)}
         onRemoveCoin={(sym) => saveWatchlist(watchlist.filter((w) => w.symbol !== sym))}
       />
+
+      {/* AI Review Modal for ChatGPT, Claude, Gemini */}
+      {report && (
+        <AiReviewModal
+          isOpen={isAiModalOpen}
+          onClose={() => setIsAiModalOpen(false)}
+          report={report}
+        />
+      )}
 
       {/* Footer */}
       <footer className="mt-auto border-t border-zinc-900 bg-zinc-950 py-6 text-center text-xs text-zinc-500">

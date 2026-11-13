@@ -1,0 +1,26 @@
+User-agent: *
+Allow: /
+Allow: /api/surveillance
+Allow: /api/ai-research
+Allow: /llms.txt
+
+# Explicit permissions for AI Agents and LLMs
+User-agent: GPTBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: Claude-Web
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+Sitemap: https://crypto-surveillance-tau.vercel.app/sitemap.xml
