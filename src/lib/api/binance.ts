@@ -1,14 +1,27 @@
 import { MarketTicker, OrderBookData, KlinePoint } from '@/types/crypto';
 
+function getBinanceHeaders(): Record<string, string> {
+  const apiKey = process.env.BINANCE_LIVE_API_KEY || process.env.BINANCE_API_KEY;
+  const headers: Record<string, string> = {
+    Accept: 'application/json',
+    'User-Agent': 'CryptoSurveillanceEngine/2.0',
+  };
+  if (apiKey) {
+    headers['X-MBX-APIKEY'] = apiKey;
+  }
+  return headers;
+}
+
 export async function fetchBinanceTicker(symbol: string): Promise<MarketTicker | null> {
   const cleanSymbol = symbol.toUpperCase().replace(/USDT$/, '');
   const pair = `${cleanSymbol}USDT`;
+  const headers = getBinanceHeaders();
 
-  // 1. Try Binance Global
+  // 1. Try Binance Global with API key header
   try {
     const res = await fetch(`https://api.binance.com/api/v3/ticker/24hr?symbol=${pair}`, {
       next: { revalidate: 10 },
-      headers: { 'Accept': 'application/json' },
+      headers,
     });
 
     if (res.ok) {
@@ -37,6 +50,7 @@ export async function fetchBinanceTicker(symbol: string): Promise<MarketTicker |
   try {
     const resUS = await fetch(`https://api.binance.us/api/v3/ticker/24hr?symbol=${pair}`, {
       next: { revalidate: 10 },
+      headers,
     });
 
     if (resUS.ok) {
@@ -65,6 +79,7 @@ export async function fetchBinanceTicker(symbol: string): Promise<MarketTicker |
   try {
     const resBybit = await fetch(`https://api.bybit.com/v5/market/tickers?category=spot&symbol=${pair}`, {
       next: { revalidate: 10 },
+      headers: { 'User-Agent': 'Mozilla/5.0' },
     });
 
     if (resBybit.ok) {
@@ -98,11 +113,13 @@ export async function fetchBinanceTicker(symbol: string): Promise<MarketTicker |
 export async function fetchBinanceDepth(symbol: string): Promise<OrderBookData | null> {
   const cleanSymbol = symbol.toUpperCase().replace(/USDT$/, '');
   const pair = `${cleanSymbol}USDT`;
+  const headers = getBinanceHeaders();
 
   // 1. Try Binance Global
   try {
     const res = await fetch(`https://api.binance.com/api/v3/depth?symbol=${pair}&limit=20`, {
       next: { revalidate: 10 },
+      headers,
     });
     if (res.ok) {
       const d = await res.json();
@@ -114,6 +131,7 @@ export async function fetchBinanceDepth(symbol: string): Promise<OrderBookData |
   try {
     const resUS = await fetch(`https://api.binance.us/api/v3/depth?symbol=${pair}&limit=20`, {
       next: { revalidate: 10 },
+      headers,
     });
     if (resUS.ok) {
       const d = await resUS.json();
@@ -125,6 +143,7 @@ export async function fetchBinanceDepth(symbol: string): Promise<OrderBookData |
   try {
     const resBybit = await fetch(`https://api.bybit.com/v5/market/orderbook?category=spot&symbol=${pair}&limit=20`, {
       next: { revalidate: 10 },
+      headers: { 'User-Agent': 'Mozilla/5.0' },
     });
     if (resBybit.ok) {
       const d = await resBybit.json();
@@ -173,11 +192,13 @@ function parseDepth(rawBids: any[], rawAsks: any[]): OrderBookData {
 export async function fetchBinanceKlines(symbol: string, interval = '1h', limit = 40): Promise<KlinePoint[]> {
   const cleanSymbol = symbol.toUpperCase().replace(/USDT$/, '');
   const pair = `${cleanSymbol}USDT`;
+  const headers = getBinanceHeaders();
 
   // 1. Try Binance Global
   try {
     const res = await fetch(`https://api.binance.com/api/v3/klines?symbol=${pair}&interval=${interval}&limit=${limit}`, {
       next: { revalidate: 30 },
+      headers,
     });
 
     if (res.ok) {
@@ -199,6 +220,7 @@ export async function fetchBinanceKlines(symbol: string, interval = '1h', limit 
     const bybitInterval = interval === '15m' ? '15' : interval === '1h' ? '60' : interval === '4h' ? '240' : 'D';
     const resBybit = await fetch(`https://api.bybit.com/v5/market/kline?category=spot&symbol=${pair}&interval=${bybitInterval}&limit=${limit}`, {
       next: { revalidate: 30 },
+      headers: { 'User-Agent': 'Mozilla/5.0' },
     });
 
     if (resBybit.ok) {
@@ -219,7 +241,6 @@ export async function fetchBinanceKlines(symbol: string, interval = '1h', limit 
   return [];
 }
 
-// Calculate RSI and EMA indicators
 function calculateTechnicalIndicators(klines: KlinePoint[]): KlinePoint[] {
   if (klines.length < 5) return klines;
 

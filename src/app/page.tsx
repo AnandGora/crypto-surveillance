@@ -1,11 +1,12 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Navbar } from '@/components/Navbar';
 import { TickerBar } from '@/components/TickerBar';
 import { CoinHeader } from '@/components/CoinHeader';
 import { RiskRadar } from '@/components/RiskRadar';
 import { PriceChart } from '@/components/PriceChart';
+import { TradingViewChart } from '@/components/TradingViewChart';
 import { FuturesSurveillance } from '@/components/FuturesSurveillance';
 import { CoinInfoFundamentals } from '@/components/CoinInfoFundamentals';
 import { OrderBookDepth } from '@/components/OrderBookDepth';
@@ -16,7 +17,7 @@ import { NewsWire } from '@/components/NewsWire';
 import { WatchlistDrawer } from '@/components/WatchlistDrawer';
 import { AnomalyAlerts } from '@/components/AnomalyAlerts';
 import { SurveillanceReport, CryptoNewsItem, WatchlistCoin } from '@/types/crypto';
-import { ShieldCheck, Layers, Compass, Code, HeartHandshake, Newspaper, RefreshCw, AlertCircle, Zap, Info, BarChart3 } from 'lucide-react';
+import { ShieldCheck, Layers, Compass, Code, HeartHandshake, Newspaper, RefreshCw, AlertCircle, Zap, Info, BarChart3, LineChart } from 'lucide-react';
 
 export default function SurveillancePage() {
   const [selectedCoin, setSelectedCoin] = useState<string>('BTC');
@@ -25,8 +26,8 @@ export default function SurveillancePage() {
   const [news, setNews] = useState<CryptoNewsItem[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isNewsLoading, setIsNewsLoading] = useState<boolean>(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'futures' | 'chart' | 'depth' | 'dex' | 'fundamentals' | 'dev' | 'sentiment' | 'news'>('overview');
-  const [refreshInterval, setRefreshInterval] = useState<number>(3); // 3s fast default (options: 1s, 3s, 5s, 10s, 30s)
+  const [activeTab, setActiveTab] = useState<'overview' | 'futures' | 'tradingview' | 'chart' | 'depth' | 'dex' | 'fundamentals' | 'dev' | 'sentiment' | 'news'>('overview');
+  const [refreshInterval, setRefreshInterval] = useState<number>(3); // 3s fast default
   const [isWatchlistOpen, setIsWatchlistOpen] = useState<boolean>(false);
   const [watchlist, setWatchlist] = useState<WatchlistCoin[]>([]);
   const [quickTickers, setQuickTickers] = useState<{ [symbol: string]: { price: number; change24h: number } }>({});
@@ -74,7 +75,7 @@ export default function SurveillancePage() {
 
   const isCurrentWatchlisted = report ? watchlist.some((w) => w.symbol === report.coin.symbol) : false;
 
-  // Fetch Surveillance Report (with silent background polling support to prevent UI flashing)
+  // Fetch Surveillance Report
   const loadSurveillance = useCallback(async (coinSymbol: string, interval = currentInterval, silent = false) => {
     if (!silent) {
       setIsLoading(true);
@@ -124,13 +125,13 @@ export default function SurveillancePage() {
     }
   }, []);
 
-  // Initial load or user change
+  // Initial load
   useEffect(() => {
     loadSurveillance(selectedCoin, currentInterval, false);
     loadNews();
   }, [selectedCoin, currentInterval, loadSurveillance, loadNews]);
 
-  // Ultra-Fast Auto-refresh interval polling (1s / 3s / 5s)
+  // Fast Auto-refresh polling (1s / 3s)
   useEffect(() => {
     if (refreshInterval <= 0) return;
 
@@ -199,6 +200,18 @@ export default function SurveillancePage() {
               </button>
 
               <button
+                onClick={() => setActiveTab('tradingview')}
+                className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-all whitespace-nowrap ${
+                  activeTab === 'tradingview'
+                    ? 'bg-cyan-500 text-black shadow-lg shadow-cyan-500/20'
+                    : 'bg-zinc-900/60 text-zinc-400 hover:text-white hover:bg-zinc-800'
+                }`}
+              >
+                <LineChart className="h-4 w-4 text-cyan-400" />
+                <span>TradingView Chart</span>
+              </button>
+
+              <button
                 onClick={() => setActiveTab('futures')}
                 className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-all whitespace-nowrap ${
                   activeTab === 'futures'
@@ -219,7 +232,7 @@ export default function SurveillancePage() {
                 }`}
               >
                 <BarChart3 className="h-4 w-4" />
-                <span>Technical Price Chart (RSI / EMA)</span>
+                <span>Custom Technical Chart</span>
               </button>
 
               <button
@@ -300,24 +313,13 @@ export default function SurveillancePage() {
               <div className="space-y-6">
                 <RiskRadar risk={report.risk} />
 
+                {/* TradingView Chart right inside Overview */}
+                <TradingViewChart symbol={report.coin.symbol} />
+
                 {/* Futures Highlight Card if available */}
                 {report.futures.hasFutures && (
                   <FuturesSurveillance futures={report.futures} symbol={report.coin.symbol} />
                 )}
-
-                <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-                  <div className="lg:col-span-8">
-                    <PriceChart
-                      klines={report.klines}
-                      symbol={report.coin.symbol}
-                      currentInterval={currentInterval}
-                      onSelectInterval={(intvl) => setCurrentInterval(intvl)}
-                    />
-                  </div>
-                  <div className="lg:col-span-4">
-                    <SentimentGauge sentiment={report.sentiment} symbol={report.coin.symbol} />
-                  </div>
-                </div>
 
                 <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
                   <OrderBookDepth orderBook={report.orderBook} symbol={report.coin.symbol} />
@@ -327,6 +329,12 @@ export default function SurveillancePage() {
                     symbol={report.coin.symbol}
                   />
                 </div>
+              </div>
+            )}
+
+            {activeTab === 'tradingview' && (
+              <div className="space-y-6">
+                <TradingViewChart symbol={report.coin.symbol} />
               </div>
             )}
 
@@ -413,13 +421,13 @@ export default function SurveillancePage() {
           <div className="flex items-center gap-2">
             <ShieldCheck className="h-4 w-4 text-cyan-400" />
             <span className="font-semibold text-zinc-300">CryptoEye Surveillance System</span>
-            <span>• Multi-Source Coin & Futures Intelligence</span>
+            <span>• TradingView & Binance Intelligence</span>
           </div>
           <div className="flex items-center gap-4 text-zinc-400">
-            <span>Binance Spot & Futures</span>
+            <span>TradingView Pro</span>
+            <span>Binance Authenticated API</span>
             <span>Bybit</span>
             <span>CoinGecko</span>
-            <span>DexScreener</span>
             <span>GitHub</span>
           </div>
         </div>

@@ -6,13 +6,22 @@ export async function fetchBinanceFuturesMetrics(symbol: string): Promise<Future
   const binancePair = isMemeThousand ? `1000${cleanSymbol}USDT` : `${cleanSymbol}USDT`;
   const genericPair = `${cleanSymbol}USDT`;
 
+  const apiKey = process.env.BINANCE_LIVE_API_KEY || process.env.BINANCE_API_KEY;
+  const headers: Record<string, string> = {
+    Accept: 'application/json',
+    'User-Agent': 'CryptoSurveillanceEngine/2.0',
+  };
+  if (apiKey) {
+    headers['X-MBX-APIKEY'] = apiKey;
+  }
+
   // 1. Try Binance Futures Global first (if not in restricted cloud IP)
   try {
     const [premiumRes, oiRes, topPosRes, takerRes] = await Promise.all([
-      fetch(`https://fapi.binance.com/fapi/v1/premiumIndex?symbol=${binancePair}`, { next: { revalidate: 15 } }),
-      fetch(`https://fapi.binance.com/fapi/v1/openInterest?symbol=${binancePair}`, { next: { revalidate: 15 } }),
-      fetch(`https://fapi.binance.com/futures/data/topLongShortPositionRatio?symbol=${binancePair}&period=1h&limit=1`, { next: { revalidate: 30 } }),
-      fetch(`https://fapi.binance.com/futures/data/takerlongshortRatio?symbol=${binancePair}&period=1h&limit=1`, { next: { revalidate: 30 } }),
+      fetch(`https://fapi.binance.com/fapi/v1/premiumIndex?symbol=${binancePair}`, { next: { revalidate: 15 }, headers }),
+      fetch(`https://fapi.binance.com/fapi/v1/openInterest?symbol=${binancePair}`, { next: { revalidate: 15 }, headers }),
+      fetch(`https://fapi.binance.com/futures/data/topLongShortPositionRatio?symbol=${binancePair}&period=1h&limit=1`, { next: { revalidate: 30 }, headers }),
+      fetch(`https://fapi.binance.com/futures/data/takerlongshortRatio?symbol=${binancePair}&period=1h&limit=1`, { next: { revalidate: 30 }, headers }),
     ]);
 
     if (premiumRes.ok) {
