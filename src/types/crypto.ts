@@ -290,3 +290,14 @@ export interface WatchlistCoin {
   score: number;
   addedAt: number;
 }
+
+export interface TradeTick {
+  id: string | number;
+  time: number;
+  price: number;
+  quantity: number;
+  quoteQuantity: number;
+  isBuyerMaker: boolean;
+  isWhale: boolean;
+  isDolphin: boolean;
+}

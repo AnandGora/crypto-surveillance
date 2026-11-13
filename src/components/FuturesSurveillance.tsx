@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Zap, TrendingUp, TrendingDown, Clock, Users, Flame, BarChart2, AlertCircle, ArrowUpRight } from 'lucide-react';
+import { Zap, TrendingUp, TrendingDown, Clock, Users, Flame, BarChart2, AlertCircle, ArrowUpRight, Calculator } from 'lucide-react';
 import { FuturesMetrics } from '@/types/crypto';
 import { LiquidationWalls } from './LiquidationWalls';
 import { WhaleRetailPositions } from './WhaleRetailPositions';
@@ -9,9 +9,10 @@ import { WhaleRetailPositions } from './WhaleRetailPositions';
 interface FuturesSurveillanceProps {
   futures: FuturesMetrics;
   symbol: string;
+  onOpenCalculator?: () => void;
 }
 
-export function FuturesSurveillance({ futures, symbol }: FuturesSurveillanceProps) {
+export function FuturesSurveillance({ futures, symbol, onOpenCalculator }: FuturesSurveillanceProps) {
   const [activeFutures, setActiveFutures] = useState<FuturesMetrics>(futures);
 
   // Client-side direct Binance Futures hydration (ensures BARD and any coin bypasses server geoblocks)
@@ -178,12 +179,22 @@ export function FuturesSurveillance({ futures, symbol }: FuturesSurveillanceProp
       <div className="rounded-2xl border border-zinc-800/80 bg-zinc-900/40 p-5 shadow-xl backdrop-blur-md">
         {/* Header */}
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-800 pb-3">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Zap className="h-5 w-5 text-amber-400" />
             <h2 className="text-base font-bold text-white">Perpetual Futures & Derivatives Surveillance</h2>
             <span className="rounded bg-amber-950/80 border border-amber-800/60 px-2 py-0.5 text-[10px] font-bold text-amber-300">
               Binance Futures Live
             </span>
+            {onOpenCalculator && (
+              <button
+                onClick={onOpenCalculator}
+                className="flex items-center gap-1.5 rounded-lg border border-cyan-800/80 bg-cyan-950/60 px-2.5 py-1 text-xs font-semibold text-cyan-300 hover:bg-cyan-900 transition-colors shadow-sm ml-2"
+                title="Open Leverage & Liquidation Calculator"
+              >
+                <Calculator className="h-3.5 w-3.5 text-cyan-400" />
+                <span>Futures Calculator</span>
+              </button>
+            )}
           </div>
 
           {/* Squeeze Risk Pill */}

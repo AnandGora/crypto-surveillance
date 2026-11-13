@@ -1,7 +1,17 @@
 'use client';
 
-import React from 'react';
-import { TrendingUp, TrendingDown, Bookmark, BookmarkCheck, ExternalLink, ShieldCheck, Zap, Bot } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import {
+  TrendingUp,
+  TrendingDown,
+  Bookmark,
+  BookmarkCheck,
+  ExternalLink,
+  ShieldCheck,
+  Zap,
+  Bot,
+  Calculator,
+} from 'lucide-react';
 import { SurveillanceReport } from '@/types/crypto';
 
 interface CoinHeaderProps {
@@ -9,11 +19,35 @@ interface CoinHeaderProps {
   isWatchlisted: boolean;
   onToggleWatchlist: () => void;
   onOpenAiReview?: () => void;
+  onOpenCalculator?: () => void;
 }
 
-export function CoinHeader({ report, isWatchlisted, onToggleWatchlist, onOpenAiReview }: CoinHeaderProps) {
+export function CoinHeader({
+  report,
+  isWatchlisted,
+  onToggleWatchlist,
+  onOpenAiReview,
+  onOpenCalculator,
+}: CoinHeaderProps) {
   const { coin, ticker, risk, dataSource, futures } = report;
   const isPositive = ticker.priceChangePercent24h >= 0;
+
+  // Real-time Price Flash State
+  const prevPriceRef = useRef<number>(ticker.price);
+  const [priceFlash, setPriceFlash] = useState<'up' | 'down' | null>(null);
+
+  useEffect(() => {
+    if (prevPriceRef.current !== ticker.price) {
+      if (ticker.price > prevPriceRef.current) {
+        setPriceFlash('up');
+      } else if (ticker.price < prevPriceRef.current) {
+        setPriceFlash('down');
+      }
+      prevPriceRef.current = ticker.price;
+      const t = setTimeout(() => setPriceFlash(null), 600);
+      return () => clearTimeout(t);
+    }
+  }, [ticker.price]);
 
   const formatPrice = (val: number) => {
     if (!val || val === 0) return '$0.00';
@@ -68,7 +102,15 @@ export function CoinHeader({ report, isWatchlisted, onToggleWatchlist, onOpenAiR
             </div>
 
             <div className="mt-2 flex items-baseline gap-3">
-              <span className="text-3xl font-extrabold tracking-tight text-white sm:text-4xl">
+              <span
+                className={`font-mono text-3xl font-extrabold tracking-tight transition-all duration-300 sm:text-4xl px-2 py-0.5 rounded-lg ${
+                  priceFlash === 'up'
+                    ? 'bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-500/60 shadow-lg shadow-emerald-500/20'
+                    : priceFlash === 'down'
+                    ? 'bg-rose-500/20 text-rose-300 ring-1 ring-rose-500/60 shadow-lg shadow-rose-500/20'
+                    : 'text-white'
+                }`}
+              >
                 {formatPrice(ticker.price)}
               </span>
               <span
@@ -112,6 +154,17 @@ export function CoinHeader({ report, isWatchlisted, onToggleWatchlist, onOpenAiR
 
           {/* Action buttons */}
           <div className="flex items-center gap-2">
+            {onOpenCalculator && (
+              <button
+                onClick={onOpenCalculator}
+                className="flex items-center gap-1.5 rounded-xl border border-zinc-700/80 bg-zinc-900/90 px-3.5 py-2.5 text-sm font-semibold text-zinc-200 hover:border-cyan-500 hover:text-cyan-300 hover:bg-zinc-800 transition-all shadow-sm"
+                title="Open Binance Futures Leverage & Liquidation Calculator"
+              >
+                <Calculator className="h-4 w-4 text-cyan-400" />
+                <span className="hidden sm:inline">Calculator</span>
+              </button>
+            )}
+
             {onOpenAiReview && (
               <button
                 onClick={onOpenAiReview}
