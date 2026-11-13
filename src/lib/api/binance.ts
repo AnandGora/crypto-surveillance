@@ -4,133 +4,236 @@ export async function fetchBinanceTicker(symbol: string): Promise<MarketTicker |
   const cleanSymbol = symbol.toUpperCase().replace(/USDT$/, '');
   const pair = `${cleanSymbol}USDT`;
 
+  // 1. Try Binance Global
   try {
     const res = await fetch(`https://api.binance.com/api/v3/ticker/24hr?symbol=${pair}`, {
       next: { revalidate: 10 },
       headers: { 'Accept': 'application/json' },
     });
 
-    if (!res.ok) return null;
+    if (res.ok) {
+      const d = await res.json();
+      const bidPrice = parseFloat(d.bidPrice) || parseFloat(d.lastPrice);
+      const askPrice = parseFloat(d.askPrice) || parseFloat(d.lastPrice);
+      const spreadPercent = askPrice > 0 ? ((askPrice - bidPrice) / askPrice) * 100 : 0;
 
-    const d = await res.json();
-    const bidPrice = parseFloat(d.bidPrice) || parseFloat(d.lastPrice);
-    const askPrice = parseFloat(d.askPrice) || parseFloat(d.lastPrice);
-    const spreadPercent = askPrice > 0 ? ((askPrice - bidPrice) / askPrice) * 100 : 0;
+      return {
+        symbol: cleanSymbol,
+        price: parseFloat(d.lastPrice),
+        priceChange24h: parseFloat(d.priceChange),
+        priceChangePercent24h: parseFloat(d.priceChangePercent),
+        high24h: parseFloat(d.highPrice),
+        low24h: parseFloat(d.lowPrice),
+        volume24h: parseFloat(d.volume),
+        quoteVolume24h: parseFloat(d.quoteVolume),
+        bidPrice,
+        askPrice,
+        spreadPercent: Math.max(0, spreadPercent),
+      };
+    }
+  } catch (err) {}
 
-    return {
-      symbol: cleanSymbol,
-      price: parseFloat(d.lastPrice),
-      priceChange24h: parseFloat(d.priceChange),
-      priceChangePercent24h: parseFloat(d.priceChangePercent),
-      high24h: parseFloat(d.highPrice),
-      low24h: parseFloat(d.lowPrice),
-      volume24h: parseFloat(d.volume),
-      quoteVolume24h: parseFloat(d.quoteVolume),
-      bidPrice,
-      askPrice,
-      spreadPercent: Math.max(0, spreadPercent),
-    };
-  } catch (err) {
-    console.warn(`[Binance Ticker Error for ${symbol}]:`, err);
-    return null;
-  }
+  // 2. Try Binance.US (Not geoblocked in US cloud regions)
+  try {
+    const resUS = await fetch(`https://api.binance.us/api/v3/ticker/24hr?symbol=${pair}`, {
+      next: { revalidate: 10 },
+    });
+
+    if (resUS.ok) {
+      const d = await resUS.json();
+      const bidPrice = parseFloat(d.bidPrice) || parseFloat(d.lastPrice);
+      const askPrice = parseFloat(d.askPrice) || parseFloat(d.lastPrice);
+      const spreadPercent = askPrice > 0 ? ((askPrice - bidPrice) / askPrice) * 100 : 0;
+
+      return {
+        symbol: cleanSymbol,
+        price: parseFloat(d.lastPrice),
+        priceChange24h: parseFloat(d.priceChange),
+        priceChangePercent24h: parseFloat(d.priceChangePercent),
+        high24h: parseFloat(d.highPrice),
+        low24h: parseFloat(d.lowPrice),
+        volume24h: parseFloat(d.volume),
+        quoteVolume24h: parseFloat(d.quoteVolume),
+        bidPrice,
+        askPrice,
+        spreadPercent: Math.max(0, spreadPercent),
+      };
+    }
+  } catch (err) {}
+
+  // 3. Try Bybit Spot Ticker (Worldwide unrestricted)
+  try {
+    const resBybit = await fetch(`https://api.bybit.com/v5/market/tickers?category=spot&symbol=${pair}`, {
+      next: { revalidate: 10 },
+    });
+
+    if (resBybit.ok) {
+      const d = await resBybit.json();
+      const item = d.result?.list?.[0];
+      if (item) {
+        const bidPrice = parseFloat(item.bid1Price || item.lastPrice);
+        const askPrice = parseFloat(item.ask1Price || item.lastPrice);
+        const spreadPercent = askPrice > 0 ? ((askPrice - bidPrice) / askPrice) * 100 : 0;
+
+        return {
+          symbol: cleanSymbol,
+          price: parseFloat(item.lastPrice),
+          priceChange24h: parseFloat(item.prevPrice24h ? String(parseFloat(item.lastPrice) - parseFloat(item.prevPrice24h)) : '0'),
+          priceChangePercent24h: parseFloat(item.price24hPcnt || '0') * 100,
+          high24h: parseFloat(item.highPrice24h || item.lastPrice),
+          low24h: parseFloat(item.lowPrice24h || item.lastPrice),
+          volume24h: parseFloat(item.volume24h || '0'),
+          quoteVolume24h: parseFloat(item.turnover24h || '0'),
+          bidPrice,
+          askPrice,
+          spreadPercent: Math.max(0, spreadPercent),
+        };
+      }
+    }
+  } catch (err) {}
+
+  return null;
 }
 
 export async function fetchBinanceDepth(symbol: string): Promise<OrderBookData | null> {
   const cleanSymbol = symbol.toUpperCase().replace(/USDT$/, '');
   const pair = `${cleanSymbol}USDT`;
 
+  // 1. Try Binance Global
   try {
     const res = await fetch(`https://api.binance.com/api/v3/depth?symbol=${pair}&limit=20`, {
       next: { revalidate: 10 },
     });
+    if (res.ok) {
+      const d = await res.json();
+      return parseDepth(d.bids, d.asks);
+    }
+  } catch (err) {}
 
-    if (!res.ok) return null;
-
-    const d = await res.json();
-    let bidSum = 0;
-    const bids = (d.bids || []).slice(0, 10).map((b: [string, string]) => {
-      const price = parseFloat(b[0]);
-      const quantity = parseFloat(b[1]);
-      bidSum += quantity;
-      return { price, quantity, total: bidSum };
+  // 2. Try Binance.US
+  try {
+    const resUS = await fetch(`https://api.binance.us/api/v3/depth?symbol=${pair}&limit=20`, {
+      next: { revalidate: 10 },
     });
+    if (resUS.ok) {
+      const d = await resUS.json();
+      return parseDepth(d.bids, d.asks);
+    }
+  } catch (err) {}
 
-    let askSum = 0;
-    const asks = (d.asks || []).slice(0, 10).map((a: [string, string]) => {
-      const price = parseFloat(a[0]);
-      const quantity = parseFloat(a[1]);
-      askSum += quantity;
-      return { price, quantity, total: askSum };
+  // 3. Try Bybit Orderbook
+  try {
+    const resBybit = await fetch(`https://api.bybit.com/v5/market/orderbook?category=spot&symbol=${pair}&limit=20`, {
+      next: { revalidate: 10 },
     });
+    if (resBybit.ok) {
+      const d = await resBybit.json();
+      const b = (d.result?.b || []).map((x: any) => [x[0], x[1]]);
+      const a = (d.result?.a || []).map((x: any) => [x[0], x[1]]);
+      return parseDepth(b, a);
+    }
+  } catch (err) {}
 
-    const totalVolume = bidSum + askSum;
-    const buyPressurePercent = totalVolume > 0 ? (bidSum / totalVolume) * 100 : 50;
-    const sellPressurePercent = totalVolume > 0 ? (askSum / totalVolume) * 100 : 50;
-    const imbalanceRatio = askSum > 0 ? bidSum / askSum : 1;
+  return null;
+}
 
-    return {
-      bids,
-      asks,
-      totalBidVolume: bidSum,
-      totalAskVolume: askSum,
-      buyPressurePercent: Math.round(buyPressurePercent * 10) / 10,
-      sellPressurePercent: Math.round(sellPressurePercent * 10) / 10,
-      imbalanceRatio: Math.round(imbalanceRatio * 100) / 100,
-    };
-  } catch (err) {
-    console.warn(`[Binance Depth Error for ${symbol}]:`, err);
-    return null;
-  }
+function parseDepth(rawBids: any[], rawAsks: any[]): OrderBookData {
+  let bidSum = 0;
+  const bids = (rawBids || []).slice(0, 10).map((b: [string, string]) => {
+    const price = parseFloat(b[0]);
+    const quantity = parseFloat(b[1]);
+    bidSum += quantity;
+    return { price, quantity, total: bidSum };
+  });
+
+  let askSum = 0;
+  const asks = (rawAsks || []).slice(0, 10).map((a: [string, string]) => {
+    const price = parseFloat(a[0]);
+    const quantity = parseFloat(a[1]);
+    askSum += quantity;
+    return { price, quantity, total: askSum };
+  });
+
+  const totalVolume = bidSum + askSum;
+  const buyPressurePercent = totalVolume > 0 ? (bidSum / totalVolume) * 100 : 50;
+  const sellPressurePercent = totalVolume > 0 ? (askSum / totalVolume) * 100 : 50;
+  const imbalanceRatio = askSum > 0 ? bidSum / askSum : 1;
+
+  return {
+    bids,
+    asks,
+    totalBidVolume: bidSum,
+    totalAskVolume: askSum,
+    buyPressurePercent: Math.round(buyPressurePercent * 10) / 10,
+    sellPressurePercent: Math.round(sellPressurePercent * 10) / 10,
+    imbalanceRatio: Math.round(imbalanceRatio * 100) / 100,
+  };
 }
 
 export async function fetchBinanceKlines(symbol: string, interval = '1h', limit = 40): Promise<KlinePoint[]> {
   const cleanSymbol = symbol.toUpperCase().replace(/USDT$/, '');
   const pair = `${cleanSymbol}USDT`;
 
+  // 1. Try Binance Global
   try {
     const res = await fetch(`https://api.binance.com/api/v3/klines?symbol=${pair}&interval=${interval}&limit=${limit}`, {
       next: { revalidate: 30 },
     });
 
-    if (!res.ok) return [];
+    if (res.ok) {
+      const raw = await res.json();
+      const rawKlines: KlinePoint[] = raw.map((k: (string | number)[]) => ({
+        time: Number(k[0]),
+        open: parseFloat(String(k[1])),
+        high: parseFloat(String(k[2])),
+        low: parseFloat(String(k[3])),
+        close: parseFloat(String(k[4])),
+        volume: parseFloat(String(k[5])),
+      }));
+      return calculateTechnicalIndicators(rawKlines);
+    }
+  } catch (err) {}
 
-    const raw = await res.json();
-    const rawKlines: KlinePoint[] = raw.map((k: (string | number)[]) => ({
-      time: Number(k[0]),
-      open: parseFloat(String(k[1])),
-      high: parseFloat(String(k[2])),
-      low: parseFloat(String(k[3])),
-      close: parseFloat(String(k[4])),
-      volume: parseFloat(String(k[5])),
-    }));
+  // 2. Try Bybit Klines (Unrestricted globally)
+  try {
+    const bybitInterval = interval === '15m' ? '15' : interval === '1h' ? '60' : interval === '4h' ? '240' : 'D';
+    const resBybit = await fetch(`https://api.bybit.com/v5/market/kline?category=spot&symbol=${pair}&interval=${bybitInterval}&limit=${limit}`, {
+      next: { revalidate: 30 },
+    });
 
-    return calculateTechnicalIndicators(rawKlines);
-  } catch (err) {
-    console.warn(`[Binance Klines Error for ${symbol}]:`, err);
-    return [];
-  }
+    if (resBybit.ok) {
+      const d = await resBybit.json();
+      const list = (d.result?.list || []).reverse();
+      const rawKlines: KlinePoint[] = list.map((k: any) => ({
+        time: Number(k[0]),
+        open: parseFloat(k[1]),
+        high: parseFloat(k[2]),
+        low: parseFloat(k[3]),
+        close: parseFloat(k[4]),
+        volume: parseFloat(k[5]),
+      }));
+      return calculateTechnicalIndicators(rawKlines);
+    }
+  } catch (err) {}
+
+  return [];
 }
 
 // Calculate RSI and EMA indicators
 function calculateTechnicalIndicators(klines: KlinePoint[]): KlinePoint[] {
   if (klines.length < 5) return klines;
 
-  // Calculate EMA 20
   const k20 = 2 / (20 + 1);
   let ema20 = klines[0].close;
 
-  // Calculate EMA 50
   const k50 = 2 / (50 + 1);
   let ema50 = klines[0].close;
 
-  // Calculate RSI 14
   const period = 14;
   let avgGain = 0;
   let avgLoss = 0;
 
   return klines.map((k, i) => {
-    // EMA calculations
     ema20 = (k.close - ema20) * k20 + ema20;
     ema50 = (k.close - ema50) * k50 + ema50;
 
