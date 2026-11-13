@@ -175,6 +175,73 @@ export async function fetchBinanceTicker(symbol: string): Promise<MarketTicker |
     }
   } catch (err) {}
 
+  // 5. Try MEXC Perpetual Futures Ticker (Worldwide unrestricted, accessible from US cloud, includes BARD & all perps)
+  try {
+    const resMexc = await fetch(`https://contract.mexc.com/api/v1/contract/ticker?symbol=${cleanSymbol}_USDT`, {
+      next: { revalidate: 3 },
+      headers: { 'User-Agent': 'Mozilla/5.0' },
+    });
+
+    if (resMexc.ok) {
+      const d = await resMexc.json();
+      if (d.data && d.data.lastPrice) {
+        const lastPrice = parseFloat(d.data.lastPrice);
+        const highPrice = parseFloat(d.data.high24Price || d.data.lastPrice);
+        const lowPrice = parseFloat(d.data.lower24Price || d.data.lastPrice);
+        const priceChangePercent = parseFloat(d.data.riseFallRate || '0') * 100;
+        const volume = parseFloat(d.data.volume24 || '0');
+        const quoteVolume = parseFloat(d.data.amount24 || '0');
+        return {
+          symbol: cleanSymbol,
+          price: lastPrice,
+          priceChange24h: lastPrice * (priceChangePercent / 100),
+          priceChangePercent24h: priceChangePercent,
+          high24h: highPrice,
+          low24h: lowPrice,
+          volume24h: volume,
+          quoteVolume24h: quoteVolume,
+          bidPrice: parseFloat(d.data.bid1 || lastPrice * 0.9998),
+          askPrice: parseFloat(d.data.ask1 || lastPrice * 1.0002),
+          spreadPercent: 0.04,
+        };
+      }
+    }
+  } catch (err) {}
+
+  // 6. Try Gate.io Futures Ticker (US cloud accessible fallback)
+  try {
+    const resGate = await fetch(`https://api.gateio.ws/api/v4/futures/usdt/tickers?contract=${cleanSymbol}_USDT`, {
+      next: { revalidate: 3 },
+      headers: { 'User-Agent': 'Mozilla/5.0' },
+    });
+
+    if (resGate.ok) {
+      const list = await resGate.json();
+      const item = list?.[0];
+      if (item && parseFloat(item.last || '0') > 0) {
+        const lastPrice = parseFloat(item.last);
+        const highPrice = parseFloat(item.high_24h || item.last);
+        const lowPrice = parseFloat(item.low_24h || item.last);
+        const priceChangePercent = parseFloat(item.change_percentage || '0');
+        const quoteVolume = parseFloat(item.volume_24h_quote || '0');
+
+        return {
+          symbol: cleanSymbol,
+          price: lastPrice,
+          priceChange24h: lastPrice * (priceChangePercent / 100),
+          priceChangePercent24h: priceChangePercent,
+          high24h: highPrice,
+          low24h: lowPrice,
+          volume24h: parseFloat(item.volume_24h || '0'),
+          quoteVolume24h: quoteVolume,
+          bidPrice: parseFloat(item.highest_bid || lastPrice * 0.9998),
+          askPrice: parseFloat(item.lowest_ask || lastPrice * 1.0002),
+          spreadPercent: 0.04,
+        };
+      }
+    }
+  } catch (err) {}
+
   return null;
 }
 

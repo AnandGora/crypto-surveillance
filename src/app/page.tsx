@@ -125,6 +125,9 @@ export default function SurveillancePage() {
         data.ticker.high24h = liveBinanceTickerRef.current.high24h;
         data.ticker.low24h = liveBinanceTickerRef.current.low24h;
         data.ticker.quoteVolume24h = liveBinanceTickerRef.current.quoteVolume24h;
+        if (data.futures) {
+          data.futures.markPrice = liveBinanceTickerRef.current.price;
+        }
       }
 
       setReport(data);
@@ -226,6 +229,12 @@ export default function SurveillancePage() {
                 low24h: lowPrice,
                 quoteVolume24h: quoteVolume,
               },
+              futures: prev.futures
+                ? {
+                    ...prev.futures,
+                    markPrice: lastPrice,
+                  }
+                : prev.futures,
             };
           });
         }
@@ -268,6 +277,12 @@ export default function SurveillancePage() {
                   high24h: highPrice > 0 ? highPrice : prev.ticker.high24h,
                   low24h: lowPrice > 0 ? lowPrice : prev.ticker.low24h,
                 },
+                futures: prev.futures
+                  ? {
+                      ...prev.futures,
+                      markPrice: lastPrice,
+                    }
+                  : prev.futures,
               };
             });
           }

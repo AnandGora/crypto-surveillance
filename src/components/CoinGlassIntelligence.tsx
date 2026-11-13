@@ -45,6 +45,9 @@ export function CoinGlassIntelligence({ report, onOpenAiModal }: CoinGlassIntell
   const formatCompact = (val: number) =>
     val >= 1e6 ? `$${(val / 1e6).toFixed(2)}M` : val >= 1e3 ? `$${(val / 1e3).toFixed(1)}K` : `$${val.toFixed(2)}`;
 
+  const dynamicShortClusterPrice = ticker.price * (1 + Math.abs(l.shortCluster.percentFromCurrent) / 100);
+  const dynamicLongClusterPrice = ticker.price * (1 - Math.abs(l.longCluster.percentFromCurrent) / 100);
+
   return (
     <div className="space-y-6">
       {/* 1. KEY LIQUIDATION CLUSTERS & AI NARRATIVE BANNER */}
@@ -80,7 +83,7 @@ export function CoinGlassIntelligence({ report, onOpenAiModal }: CoinGlassIntell
                 </div>
                 <div className="flex items-baseline justify-between">
                   <span className="font-mono text-lg font-black text-white">
-                    ${formatPrice(l.shortCluster.price)}
+                    ${formatPrice(dynamicShortClusterPrice)}
                   </span>
                   <span className="text-[11px] text-zinc-400">
                     Intensity: <strong className="text-rose-300">{l.shortCluster.intensityLabel}</strong>
@@ -112,7 +115,7 @@ export function CoinGlassIntelligence({ report, onOpenAiModal }: CoinGlassIntell
                 </div>
                 <div className="flex items-baseline justify-between">
                   <span className="font-mono text-lg font-black text-white">
-                    ${formatPrice(l.longCluster.price)}
+                    ${formatPrice(dynamicLongClusterPrice)}
                   </span>
                   <span className="text-[11px] text-zinc-400">
                     Intensity: <strong className="text-emerald-300">{l.longCluster.intensityLabel}</strong>

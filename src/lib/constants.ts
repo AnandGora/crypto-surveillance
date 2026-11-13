@@ -19,6 +19,8 @@ export const POPULAR_COINS: CoinPreset[] = [
   { symbol: 'LINK', name: 'Chainlink', coingeckoId: 'chainlink', githubRepo: 'smartcontractkit/chainlink' },
   { symbol: 'PEPE', name: 'Pepe', coingeckoId: 'pepe', githubRepo: '' },
   { symbol: 'NEAR', name: 'NEAR Protocol', coingeckoId: 'near', githubRepo: 'near/nearcore' },
+  { symbol: 'BARD', name: 'Lombard', coingeckoId: 'lombard-protocol', githubRepo: '' },
+  { symbol: 'JCT', name: 'Janction', coingeckoId: 'janction', githubRepo: '' },
 ];
 
-export const DEFAULT_TICKERS = ['BTC', 'ETH', 'SOL', 'BNB', 'XRP', 'DOGE', 'SUI', 'PEPE'];
+export const DEFAULT_TICKERS = ['BTC', 'ETH', 'SOL', 'BNB', 'BARD', 'XRP', 'DOGE', 'SUI', 'PEPE'];
