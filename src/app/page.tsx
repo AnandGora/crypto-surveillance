@@ -5,7 +5,6 @@ import { Navbar } from '@/components/Navbar';
 import { TickerBar } from '@/components/TickerBar';
 import { CoinHeader } from '@/components/CoinHeader';
 import { RiskRadar } from '@/components/RiskRadar';
-import { PriceChart } from '@/components/PriceChart';
 import { TradingViewChart } from '@/components/TradingViewChart';
 import { FuturesSurveillance } from '@/components/FuturesSurveillance';
 import { CoinInfoFundamentals } from '@/components/CoinInfoFundamentals';
@@ -30,7 +29,6 @@ import {
   AlertCircle,
   Zap,
   Info,
-  BarChart3,
   LineChart,
   Flame,
   Bot,
@@ -43,7 +41,7 @@ export default function SurveillancePage() {
   const [news, setNews] = useState<CryptoNewsItem[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isNewsLoading, setIsNewsLoading] = useState<boolean>(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'coinglass' | 'futures' | 'tradingview' | 'chart' | 'depth' | 'dex' | 'fundamentals' | 'dev' | 'sentiment' | 'news'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'coinglass' | 'tradingview' | 'futures' | 'depth' | 'dex' | 'fundamentals' | 'dev' | 'sentiment' | 'news'>('overview');
   const [isAiModalOpen, setIsAiModalOpen] = useState<boolean>(false);
   const [refreshInterval, setRefreshInterval] = useState<number>(3); // 3s fast default
   const [isWatchlistOpen, setIsWatchlistOpen] = useState<boolean>(false);
@@ -160,6 +158,86 @@ export default function SurveillancePage() {
     return () => clearInterval(timer);
   }, [refreshInterval, selectedCoin, currentInterval, loadSurveillance]);
 
+  // Live Binance Futures Ticker Synchronizer (Zero price difference with live Binance!)
+  useEffect(() => {
+    if (!selectedCoin) return;
+    let isCancelled = false;
+    const clean = selectedCoin.toUpperCase().replace(/USDT$/, '');
+    const isMemeThousand = ['PEPE', 'SHIB', 'LUNC', 'FLOKI', 'BONK', 'RATS', 'SATS', 'CAT'].includes(clean);
+    const binancePair = isMemeThousand ? `1000${clean}USDT` : `${clean}USDT`;
+
+    // 1. Immediate client-side fetch from Binance Futures
+    const syncDirectFutures = async () => {
+      try {
+        const res = await fetch(`https://fapi.binance.com/fapi/v1/ticker/24hr?symbol=${binancePair}`);
+        if (res.ok && !isCancelled) {
+          const d = await res.json();
+          const lastPrice = parseFloat(d.lastPrice);
+          const priceChange = parseFloat(d.priceChange);
+          const priceChangePercent = parseFloat(d.priceChangePercent);
+          const highPrice = parseFloat(d.highPrice);
+          const lowPrice = parseFloat(d.lowPrice);
+          const quoteVolume = parseFloat(d.quoteVolume);
+
+          setReport((prev) => {
+            if (!prev) return prev;
+            return {
+              ...prev,
+              ticker: {
+                ...prev.ticker,
+                price: lastPrice,
+                priceChange24h: priceChange,
+                priceChangePercent24h: priceChangePercent,
+                high24h: highPrice,
+                low24h: lowPrice,
+                quoteVolume24h: quoteVolume,
+              },
+            };
+          });
+        }
+      } catch (e) {}
+    };
+
+    syncDirectFutures();
+
+    // 2. Real-Time Binance Futures WebSocket
+    let ws: WebSocket | null = null;
+    try {
+      ws = new WebSocket(`wss://fstream.binance.com/ws/${binancePair.toLowerCase()}@ticker`);
+      ws.onmessage = (event) => {
+        if (isCancelled) return;
+        try {
+          const d = JSON.parse(event.data);
+          if (d.c) {
+            const lastPrice = parseFloat(d.c);
+            const priceChangePercent = parseFloat(d.P || '0');
+            const highPrice = parseFloat(d.h || '0');
+            const lowPrice = parseFloat(d.l || '0');
+
+            setReport((prev) => {
+              if (!prev) return prev;
+              return {
+                ...prev,
+                ticker: {
+                  ...prev.ticker,
+                  price: lastPrice,
+                  priceChangePercent24h: priceChangePercent,
+                  high24h: highPrice > 0 ? highPrice : prev.ticker.high24h,
+                  low24h: lowPrice > 0 ? lowPrice : prev.ticker.low24h,
+                },
+              };
+            });
+          }
+        } catch (e) {}
+      };
+    } catch (e) {}
+
+    return () => {
+      isCancelled = true;
+      if (ws) ws.close();
+    };
+  }, [selectedCoin]);
+
   return (
     <div className="min-h-screen bg-black text-zinc-100 flex flex-col font-sans selection:bg-cyan-500 selection:text-black">
       {/* Navigation */}
@@ -252,18 +330,6 @@ export default function SurveillancePage() {
               >
                 <Zap className="h-4 w-4 text-amber-400" />
                 <span>Futures, OI & Funding</span>
-              </button>
-
-              <button
-                onClick={() => setActiveTab('chart')}
-                className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-all whitespace-nowrap ${
-                  activeTab === 'chart'
-                    ? 'bg-cyan-500 text-black shadow-lg shadow-cyan-500/20'
-                    : 'bg-zinc-900/60 text-zinc-400 hover:text-white hover:bg-zinc-800'
-                }`}
-              >
-                <BarChart3 className="h-4 w-4" />
-                <span>Custom Technical Chart</span>
               </button>
 
               <button
@@ -403,17 +469,6 @@ export default function SurveillancePage() {
             {activeTab === 'futures' && (
               <div className="space-y-6">
                 <FuturesSurveillance futures={report.futures} symbol={report.coin.symbol} />
-              </div>
-            )}
-
-            {activeTab === 'chart' && (
-              <div className="space-y-6">
-                <PriceChart
-                  klines={report.klines}
-                  symbol={report.coin.symbol}
-                  currentInterval={currentInterval}
-                  onSelectInterval={(intvl) => setCurrentInterval(intvl)}
-                />
               </div>
             )}
 

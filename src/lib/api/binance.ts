@@ -14,13 +14,48 @@ function getBinanceHeaders(): Record<string, string> {
 
 export async function fetchBinanceTicker(symbol: string): Promise<MarketTicker | null> {
   const cleanSymbol = symbol.toUpperCase().replace(/USDT$/, '');
+  const isMemeThousand = ['PEPE', 'SHIB', 'LUNC', 'FLOKI', 'BONK', 'RATS', 'SATS', 'CAT'].includes(cleanSymbol);
+  const binancePair = isMemeThousand ? `1000${cleanSymbol}USDT` : `${cleanSymbol}USDT`;
   const pair = `${cleanSymbol}USDT`;
   const headers = getBinanceHeaders();
 
-  // 1. Try Binance Global with API key header
+  // 1. Try Binance Futures FIRST (User trades Binance Futures - exact live futures price match!)
+  try {
+    const resFut = await fetch(`https://fapi.binance.com/fapi/v1/ticker/24hr?symbol=${binancePair}`, {
+      next: { revalidate: 3 },
+      headers,
+    });
+
+    if (resFut.ok) {
+      const d = await resFut.json();
+      const lastPrice = parseFloat(d.lastPrice);
+      const highPrice = parseFloat(d.highPrice);
+      const lowPrice = parseFloat(d.lowPrice);
+      const priceChange = parseFloat(d.priceChange);
+      const priceChangePercent = parseFloat(d.priceChangePercent);
+      const volume = parseFloat(d.volume);
+      const quoteVolume = parseFloat(d.quoteVolume);
+
+      return {
+        symbol: cleanSymbol,
+        price: lastPrice,
+        priceChange24h: priceChange,
+        priceChangePercent24h: priceChangePercent,
+        high24h: highPrice,
+        low24h: lowPrice,
+        volume24h: volume,
+        quoteVolume24h: quoteVolume,
+        bidPrice: lastPrice * 0.9998,
+        askPrice: lastPrice * 1.0002,
+        spreadPercent: 0.04,
+      };
+    }
+  } catch (err) {}
+
+  // 2. Try Binance Global Spot with API key header
   try {
     const res = await fetch(`https://api.binance.com/api/v3/ticker/24hr?symbol=${pair}`, {
-      next: { revalidate: 10 },
+      next: { revalidate: 5 },
       headers,
     });
 
@@ -112,10 +147,26 @@ export async function fetchBinanceTicker(symbol: string): Promise<MarketTicker |
 
 export async function fetchBinanceDepth(symbol: string): Promise<OrderBookData | null> {
   const cleanSymbol = symbol.toUpperCase().replace(/USDT$/, '');
+  const isMemeThousand = ['PEPE', 'SHIB', 'LUNC', 'FLOKI', 'BONK', 'RATS', 'SATS', 'CAT'].includes(cleanSymbol);
+  const binancePair = isMemeThousand ? `1000${cleanSymbol}USDT` : `${cleanSymbol}USDT`;
   const pair = `${cleanSymbol}USDT`;
   const headers = getBinanceHeaders();
 
-  // 1. Try Binance Global
+  // 1. Try Binance Futures Depth FIRST (Real live futures contracts and dynamic depth)
+  try {
+    const resFut = await fetch(`https://fapi.binance.com/fapi/v1/depth?symbol=${binancePair}&limit=20`, {
+      next: { revalidate: 3 },
+      headers,
+    });
+    if (resFut.ok) {
+      const d = await resFut.json();
+      if (d.bids?.length && d.asks?.length) {
+        return parseDepth(d.bids, d.asks);
+      }
+    }
+  } catch (err) {}
+
+  // 2. Try Binance Global Spot
   try {
     const res = await fetch(`https://api.binance.com/api/v3/depth?symbol=${pair}&limit=20`, {
       next: { revalidate: 10 },
