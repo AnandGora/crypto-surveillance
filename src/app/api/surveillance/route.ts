@@ -4,9 +4,10 @@ import { runSurveillance } from '@/lib/surveillance-engine';
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const coin = searchParams.get('coin') || 'BTC';
+  const interval = searchParams.get('interval') || '1h';
 
   try {
-    const report = await runSurveillance(coin);
+    const report = await runSurveillance(coin, interval);
     return NextResponse.json(report, {
       headers: {
         'Cache-Control': 'public, s-maxage=10, stale-while-revalidate=30',

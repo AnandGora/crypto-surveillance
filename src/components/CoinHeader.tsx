@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { TrendingUp, TrendingDown, Bookmark, BookmarkCheck, ExternalLink, ShieldCheck, Database } from 'lucide-react';
+import { TrendingUp, TrendingDown, Bookmark, BookmarkCheck, ExternalLink, ShieldCheck, Zap } from 'lucide-react';
 import { SurveillanceReport } from '@/types/crypto';
 
 interface CoinHeaderProps {
@@ -11,7 +11,7 @@ interface CoinHeaderProps {
 }
 
 export function CoinHeader({ report, isWatchlisted, onToggleWatchlist }: CoinHeaderProps) {
-  const { coin, ticker, risk, dataSource } = report;
+  const { coin, ticker, risk, dataSource, futures } = report;
   const isPositive = ticker.priceChangePercent24h >= 0;
 
   const formatPrice = (val: number) => {
@@ -37,7 +37,6 @@ export function CoinHeader({ report, isWatchlisted, onToggleWatchlist }: CoinHea
     return `$${val.toFixed(2)}`;
   };
 
-  // High/Low range position
   const rangeSpan = ticker.high24h - ticker.low24h;
   const currentPos = rangeSpan > 0 ? Math.min(100, Math.max(0, ((ticker.price - ticker.low24h) / rangeSpan) * 100)) : 50;
 
@@ -142,7 +141,6 @@ export function CoinHeader({ report, isWatchlisted, onToggleWatchlist }: CoinHea
             <span>{formatPrice(ticker.low24h)}</span>
             <span>{formatPrice(ticker.high24h)}</span>
           </div>
-          {/* Visual Range bar */}
           <div className="mt-1.5 h-1.5 w-full rounded-full bg-zinc-800 overflow-hidden">
             <div
               className="h-full rounded-full bg-gradient-to-r from-rose-500 via-amber-400 to-emerald-400"
@@ -158,22 +156,43 @@ export function CoinHeader({ report, isWatchlisted, onToggleWatchlist }: CoinHea
         </div>
 
         <div className="rounded-lg bg-zinc-950/40 p-2.5">
-          <div className="text-[11px] font-medium text-zinc-400">24h Volume</div>
+          <div className="text-[11px] font-medium text-zinc-400">24h Spot Volume</div>
           <div className="mt-1 text-sm font-bold text-white">{formatLargeNumber(ticker.quoteVolume24h)}</div>
           <div className="text-[10px] text-zinc-500">Turnover USD</div>
         </div>
 
+        {/* Futures Open Interest or Spread */}
         <div className="rounded-lg bg-zinc-950/40 p-2.5">
-          <div className="text-[11px] font-medium text-zinc-400">Bid-Ask Spread</div>
-          <div className="mt-1 text-sm font-bold text-cyan-400">{ticker.spreadPercent.toFixed(3)}%</div>
-          <div className="text-[10px] text-zinc-500">Slippage impact</div>
+          <div className="flex items-center justify-between text-[11px] font-medium text-zinc-400">
+            <span>Open Interest (OI)</span>
+            {futures?.hasFutures && <Zap className="h-2.5 w-2.5 text-amber-400" />}
+          </div>
+          <div className="mt-1 text-sm font-bold text-amber-400">
+            {futures?.hasFutures ? formatLargeNumber(futures.openInterestUsd) : `${ticker.spreadPercent.toFixed(3)}%`}
+          </div>
+          <div className="text-[10px] text-zinc-500">
+            {futures?.hasFutures ? 'Perpetuals Open' : 'Bid-Ask Spread'}
+          </div>
         </div>
 
+        {/* Funding Rate or ATH */}
         <div className="rounded-lg bg-zinc-950/40 p-2.5">
-          <div className="text-[11px] font-medium text-zinc-400">All-Time High</div>
-          <div className="mt-1 text-sm font-bold text-white">{formatPrice(coin.ath || 0)}</div>
-          <div className="text-[10px] text-rose-400">
-            {coin.athChangePercent ? `${coin.athChangePercent.toFixed(1)}% from ATH` : 'N/A'}
+          <div className="text-[11px] font-medium text-zinc-400">
+            {futures?.hasFutures ? '8h Funding Rate' : 'All-Time High'}
+          </div>
+          <div
+            className={`mt-1 text-sm font-bold ${
+              futures?.hasFutures
+                ? futures.fundingRate >= 0
+                  ? 'text-emerald-400'
+                  : 'text-rose-400'
+                : 'text-white'
+            }`}
+          >
+            {futures?.hasFutures ? `${(futures.fundingRatePercent).toFixed(4)}%` : formatPrice(coin.ath || 0)}
+          </div>
+          <div className="text-[10px] text-zinc-500">
+            {futures?.hasFutures ? futures.fundingCountdown : `${coin.athChangePercent?.toFixed(1) || 0}% from ATH`}
           </div>
         </div>
 
@@ -183,6 +202,11 @@ export function CoinHeader({ report, isWatchlisted, onToggleWatchlist }: CoinHea
             {dataSource.binance && (
               <span className="rounded bg-yellow-950/60 border border-yellow-800/40 px-1 py-0.2 text-[9px] font-medium text-yellow-300">
                 Binance
+              </span>
+            )}
+            {dataSource.binanceFutures && (
+              <span className="rounded bg-amber-950/60 border border-amber-800/40 px-1 py-0.2 text-[9px] font-medium text-amber-300">
+                Futures
               </span>
             )}
             {dataSource.dexScreener && (

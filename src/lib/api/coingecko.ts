@@ -3,6 +3,10 @@ export interface CoinGeckoCoinData {
   symbol: string;
   name: string;
   market_cap_rank?: number;
+  description?: { en?: string };
+  categories?: string[];
+  hashing_algorithm?: string;
+  genesis_date?: string;
   image?: { thumb?: string; small?: string; large?: string };
   market_data?: {
     current_price?: { usd?: number };
@@ -11,6 +15,7 @@ export interface CoinGeckoCoinData {
     fully_diluted_valuation?: { usd?: number };
     circulating_supply?: number;
     total_supply?: number;
+    max_supply?: number;
     ath?: { usd?: number };
     ath_change_percentage?: { usd?: number };
     price_change_percentage_24h?: number;
@@ -30,6 +35,9 @@ export interface CoinGeckoCoinData {
     commit_count_4_weeks?: number;
   };
   links?: {
+    homepage?: string[];
+    whitepaper?: string;
+    blockchain_site?: string[];
     repos_url?: {
       github?: string[];
     };

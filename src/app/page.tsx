@@ -6,6 +6,8 @@ import { TickerBar } from '@/components/TickerBar';
 import { CoinHeader } from '@/components/CoinHeader';
 import { RiskRadar } from '@/components/RiskRadar';
 import { PriceChart } from '@/components/PriceChart';
+import { FuturesSurveillance } from '@/components/FuturesSurveillance';
+import { CoinInfoFundamentals } from '@/components/CoinInfoFundamentals';
 import { OrderBookDepth } from '@/components/OrderBookDepth';
 import { DexScanner } from '@/components/DexScanner';
 import { GithubSurveillance } from '@/components/GithubSurveillance';
@@ -14,15 +16,16 @@ import { NewsWire } from '@/components/NewsWire';
 import { WatchlistDrawer } from '@/components/WatchlistDrawer';
 import { AnomalyAlerts } from '@/components/AnomalyAlerts';
 import { SurveillanceReport, CryptoNewsItem, WatchlistCoin } from '@/types/crypto';
-import { ShieldCheck, Layers, Compass, Code, HeartHandshake, Newspaper, RefreshCw, AlertCircle } from 'lucide-react';
+import { ShieldCheck, Layers, Compass, Code, HeartHandshake, Newspaper, RefreshCw, AlertCircle, Zap, Info, BarChart3 } from 'lucide-react';
 
 export default function SurveillancePage() {
   const [selectedCoin, setSelectedCoin] = useState<string>('BTC');
+  const [currentInterval, setCurrentInterval] = useState<string>('1h');
   const [report, setReport] = useState<SurveillanceReport | null>(null);
   const [news, setNews] = useState<CryptoNewsItem[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isNewsLoading, setIsNewsLoading] = useState<boolean>(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'depth' | 'dex' | 'dev' | 'sentiment' | 'news'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'futures' | 'chart' | 'depth' | 'dex' | 'fundamentals' | 'dev' | 'sentiment' | 'news'>('overview');
   const [refreshInterval, setRefreshInterval] = useState<number>(30); // 30s default
   const [isWatchlistOpen, setIsWatchlistOpen] = useState<boolean>(false);
   const [watchlist, setWatchlist] = useState<WatchlistCoin[]>([]);
@@ -72,19 +75,18 @@ export default function SurveillancePage() {
   const isCurrentWatchlisted = report ? watchlist.some((w) => w.symbol === report.coin.symbol) : false;
 
   // Fetch Surveillance Report
-  const loadSurveillance = useCallback(async (coinSymbol: string) => {
+  const loadSurveillance = useCallback(async (coinSymbol: string, interval = currentInterval) => {
     setIsLoading(true);
     setErrorMessage(null);
 
     try {
-      const res = await fetch(`/api/surveillance?coin=${encodeURIComponent(coinSymbol)}`);
+      const res = await fetch(`/api/surveillance?coin=${encodeURIComponent(coinSymbol)}&interval=${interval}`);
       if (!res.ok) {
         throw new Error(`Surveillance request failed with status ${res.status}`);
       }
       const data: SurveillanceReport = await res.json();
       setReport(data);
 
-      // Update quick tickers cache
       setQuickTickers((prev) => ({
         ...prev,
         [data.coin.symbol]: {
@@ -98,7 +100,7 @@ export default function SurveillancePage() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [currentInterval]);
 
   // Fetch News Feed
   const loadNews = useCallback(async () => {
@@ -118,20 +120,20 @@ export default function SurveillancePage() {
 
   // Initial load
   useEffect(() => {
-    loadSurveillance(selectedCoin);
+    loadSurveillance(selectedCoin, currentInterval);
     loadNews();
-  }, [selectedCoin, loadSurveillance, loadNews]);
+  }, [selectedCoin, currentInterval, loadSurveillance, loadNews]);
 
   // Auto-refresh interval polling
   useEffect(() => {
     if (refreshInterval <= 0) return;
 
     const timer = setInterval(() => {
-      loadSurveillance(selectedCoin);
+      loadSurveillance(selectedCoin, currentInterval);
     }, refreshInterval * 1000);
 
     return () => clearInterval(timer);
-  }, [refreshInterval, selectedCoin, loadSurveillance]);
+  }, [refreshInterval, selectedCoin, currentInterval, loadSurveillance]);
 
   return (
     <div className="min-h-screen bg-black text-zinc-100 flex flex-col font-sans selection:bg-cyan-500 selection:text-black">
@@ -139,7 +141,7 @@ export default function SurveillancePage() {
       <Navbar
         currentSymbol={selectedCoin}
         onSelectCoin={(sym) => setSelectedCoin(sym)}
-        onRefresh={() => loadSurveillance(selectedCoin)}
+        onRefresh={() => loadSurveillance(selectedCoin, currentInterval)}
         isLoading={isLoading}
         refreshInterval={refreshInterval}
         onSetRefreshInterval={(val) => setRefreshInterval(val)}
@@ -191,6 +193,30 @@ export default function SurveillancePage() {
               </button>
 
               <button
+                onClick={() => setActiveTab('futures')}
+                className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-all whitespace-nowrap ${
+                  activeTab === 'futures'
+                    ? 'bg-cyan-500 text-black shadow-lg shadow-cyan-500/20'
+                    : 'bg-zinc-900/60 text-zinc-400 hover:text-white hover:bg-zinc-800'
+                }`}
+              >
+                <Zap className="h-4 w-4 text-amber-400" />
+                <span>Futures, OI & Funding</span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('chart')}
+                className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-all whitespace-nowrap ${
+                  activeTab === 'chart'
+                    ? 'bg-cyan-500 text-black shadow-lg shadow-cyan-500/20'
+                    : 'bg-zinc-900/60 text-zinc-400 hover:text-white hover:bg-zinc-800'
+                }`}
+              >
+                <BarChart3 className="h-4 w-4" />
+                <span>Technical Price Chart (RSI / EMA)</span>
+              </button>
+
+              <button
                 onClick={() => setActiveTab('depth')}
                 className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-all whitespace-nowrap ${
                   activeTab === 'depth'
@@ -212,6 +238,18 @@ export default function SurveillancePage() {
               >
                 <Compass className="h-4 w-4" />
                 <span>DEX & Security Scanner</span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('fundamentals')}
+                className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-all whitespace-nowrap ${
+                  activeTab === 'fundamentals'
+                    ? 'bg-cyan-500 text-black shadow-lg shadow-cyan-500/20'
+                    : 'bg-zinc-900/60 text-zinc-400 hover:text-white hover:bg-zinc-800'
+                }`}
+              >
+                <Info className="h-4 w-4" />
+                <span>Info & Tokenomics</span>
               </button>
 
               <button
@@ -255,14 +293,26 @@ export default function SurveillancePage() {
             {activeTab === 'overview' && (
               <div className="space-y-6">
                 <RiskRadar risk={report.risk} />
+
+                {/* Futures Highlight Card if available */}
+                {report.futures.hasFutures && (
+                  <FuturesSurveillance futures={report.futures} symbol={report.coin.symbol} />
+                )}
+
                 <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
                   <div className="lg:col-span-8">
-                    <PriceChart klines={report.klines} symbol={report.coin.symbol} />
+                    <PriceChart
+                      klines={report.klines}
+                      symbol={report.coin.symbol}
+                      currentInterval={currentInterval}
+                      onSelectInterval={(intvl) => setCurrentInterval(intvl)}
+                    />
                   </div>
                   <div className="lg:col-span-4">
                     <SentimentGauge sentiment={report.sentiment} symbol={report.coin.symbol} />
                   </div>
                 </div>
+
                 <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
                   <OrderBookDepth orderBook={report.orderBook} symbol={report.coin.symbol} />
                   <DexScanner
@@ -274,10 +324,26 @@ export default function SurveillancePage() {
               </div>
             )}
 
+            {activeTab === 'futures' && (
+              <div className="space-y-6">
+                <FuturesSurveillance futures={report.futures} symbol={report.coin.symbol} />
+              </div>
+            )}
+
+            {activeTab === 'chart' && (
+              <div className="space-y-6">
+                <PriceChart
+                  klines={report.klines}
+                  symbol={report.coin.symbol}
+                  currentInterval={currentInterval}
+                  onSelectInterval={(intvl) => setCurrentInterval(intvl)}
+                />
+              </div>
+            )}
+
             {activeTab === 'depth' && (
               <div className="space-y-6">
                 <OrderBookDepth orderBook={report.orderBook} symbol={report.coin.symbol} />
-                <PriceChart klines={report.klines} symbol={report.coin.symbol} />
               </div>
             )}
 
@@ -288,6 +354,12 @@ export default function SurveillancePage() {
                   security={report.security}
                   symbol={report.coin.symbol}
                 />
+              </div>
+            )}
+
+            {activeTab === 'fundamentals' && (
+              <div className="space-y-6">
+                <CoinInfoFundamentals fundamentals={report.fundamentals} coin={report.coin} />
               </div>
             )}
 
@@ -312,9 +384,9 @@ export default function SurveillancePage() {
         ) : (
           <div className="flex h-96 flex-col items-center justify-center text-center">
             <RefreshCw className="h-8 w-8 animate-spin text-cyan-400 mb-3" />
-            <h3 className="text-lg font-bold text-white">Initializing Crypto Surveillance Engine...</h3>
+            <h3 className="text-lg font-bold text-white">Gathering Multi-Source Surveillance Metrics...</h3>
             <p className="text-xs text-zinc-500 mt-1 max-w-sm">
-              Gathering data from Binance, DexScreener, CoinGecko, GitHub, and Alternative.me
+              Connecting Binance Spot & Futures, DexScreener, CoinGecko, and GitHub API
             </p>
           </div>
         )}
@@ -335,10 +407,10 @@ export default function SurveillancePage() {
           <div className="flex items-center gap-2">
             <ShieldCheck className="h-4 w-4 text-cyan-400" />
             <span className="font-semibold text-zinc-300">CryptoEye Surveillance System</span>
-            <span>• Multi-Source Coin Intelligence</span>
+            <span>• Multi-Source Coin & Futures Intelligence</span>
           </div>
           <div className="flex items-center gap-4 text-zinc-400">
-            <span>Binance</span>
+            <span>Binance Spot & Futures</span>
             <span>DexScreener</span>
             <span>CoinGecko</span>
             <span>GitHub</span>

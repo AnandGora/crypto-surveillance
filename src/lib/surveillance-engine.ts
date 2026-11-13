@@ -1,12 +1,13 @@
 import { fetchBinanceTicker, fetchBinanceDepth, fetchBinanceKlines } from './api/binance';
+import { fetchBinanceFuturesMetrics } from './api/binance-futures';
 import { fetchDexPairs } from './api/dexscreener';
 import { fetchCoinGeckoDetails } from './api/coingecko';
 import { fetchGithubMetrics } from './api/github';
 import { fetchFearAndGreed } from './api/sentiment';
 import { POPULAR_COINS } from './constants';
-import { SurveillanceReport, ContractSecurity, RiskAnalysis } from '@/types/crypto';
+import { SurveillanceReport, ContractSecurity, RiskAnalysis, CoinFundamentals } from '@/types/crypto';
 
-export async function runSurveillance(query: string): Promise<SurveillanceReport> {
+export async function runSurveillance(query: string, interval = '1h'): Promise<SurveillanceReport> {
   const cleanQuery = query.trim();
   const upperSymbol = cleanQuery.toUpperCase().replace(/USDT$/, '');
 
@@ -20,14 +21,15 @@ export async function runSurveillance(query: string): Promise<SurveillanceReport
   const geckoId = preset ? preset.coingeckoId : cleanQuery.toLowerCase();
   const githubRepo = preset ? preset.githubRepo : '';
 
-  // Execute multi-API parallel fetch
-  const [tickerRes, depthRes, klinesRes, dexPairs, geckoRes, fearGreed] = await Promise.all([
+  // Execute multi-API parallel fetch (including Binance Futures!)
+  const [tickerRes, depthRes, klinesRes, dexPairs, geckoRes, fearGreed, futuresMetrics] = await Promise.all([
     fetchBinanceTicker(coinSymbol),
     fetchBinanceDepth(coinSymbol),
-    fetchBinanceKlines(coinSymbol, '1h', 24),
+    fetchBinanceKlines(coinSymbol, interval, 40),
     fetchDexPairs(coinSymbol),
     fetchCoinGeckoDetails(geckoId),
     fetchFearAndGreed(),
+    fetchBinanceFuturesMetrics(coinSymbol),
   ]);
 
   // Determine GitHub repo to inspect: either preset or from CoinGecko links
@@ -40,7 +42,7 @@ export async function runSurveillance(query: string): Promise<SurveillanceReport
 
   const devMetrics = await fetchGithubMetrics(repoToInspect);
 
-  // Fallback ticker if Binance does not list this token (e.g. fresh DEX meme/altcoin)
+  // Fallback ticker if Binance spot does not list this token
   const topDexPair = dexPairs[0];
   const derivedPrice = tickerRes?.price || (topDexPair ? parseFloat(topDexPair.priceUsd) : geckoRes?.market_data?.current_price?.usd || 0);
   const derivedChangePercent = tickerRes?.priceChangePercent24h ?? (topDexPair?.priceChange24h ?? geckoRes?.market_data?.price_change_percentage_24h ?? 0);
@@ -62,7 +64,7 @@ export async function runSurveillance(query: string): Promise<SurveillanceReport
 
   const finalTicker = tickerRes || fallbackTicker;
 
-  // Fallback order book if Binance is empty
+  // Fallback order book
   const defaultOrderBook = {
     bids: [
       { price: finalTicker.price * 0.999, quantity: 12.5, total: 12.5 },
@@ -85,7 +87,7 @@ export async function runSurveillance(query: string): Promise<SurveillanceReport
 
   const finalOrderBook = depthRes || defaultOrderBook;
 
-  // Generate synthetic / actual klines if empty
+  // Generate synthetic klines if empty
   let finalKlines = klinesRes;
   if (!finalKlines || finalKlines.length === 0) {
     const baseP = finalTicker.price;
@@ -101,6 +103,9 @@ export async function runSurveillance(query: string): Promise<SurveillanceReport
         low: c * 0.995,
         close: c,
         volume: (Math.random() * 50 + 10) * baseP,
+        rsi: 52,
+        ema20: c,
+        ema50: c,
       };
     });
   }
@@ -110,7 +115,6 @@ export async function runSurveillance(query: string): Promise<SurveillanceReport
   const totalDexSells = dexPairs.reduce((acc, p) => acc + (p.txns24h?.sells || 0), 0);
   const totalDexLiquidity = dexPairs.reduce((acc, p) => acc + (p.liquidityUsd || 0), 0);
 
-  // If sells are 0 but buys are > 50 on DEX, honeypot danger is severe
   const isSuspiciousHoneypot = totalDexBuys > 50 && totalDexSells === 0;
 
   const security: ContractSecurity = {
@@ -134,6 +138,28 @@ export async function runSurveillance(query: string): Promise<SurveillanceReport
     security.notes.push('GitHub repository has had no activity for over 90 days.');
   }
 
+  // Coin Fundamentals Extraction
+  const cleanDescription = (geckoRes?.description?.en || '')
+    .replace(/<[^>]*>?/gm, '')
+    .replace(/http[s]?:\/\/\S+/gm, '')
+    .slice(0, 320) + '...';
+
+  const circulatingSupply = geckoRes?.market_data?.circulating_supply || 0;
+  const maxSupply = geckoRes?.market_data?.max_supply || geckoRes?.market_data?.total_supply || null;
+  const circulatingPercent = maxSupply && maxSupply > 0 ? Math.min(100, (circulatingSupply / maxSupply) * 100) : 100;
+
+  const fundamentals: CoinFundamentals = {
+    description: cleanDescription || `${coinName} (${coinSymbol}) is a prominent decentralized digital asset traded across global spot and derivatives exchanges.`,
+    categories: geckoRes?.categories || ['Cryptocurrency', 'Layer 1 / Ecosystem'],
+    hashingAlgorithm: geckoRes?.hashing_algorithm || 'Decentralized Consensus',
+    genesisDate: geckoRes?.genesis_date || 'Established',
+    maxSupply,
+    circulatingPercent: Math.round(circulatingPercent * 10) / 10,
+    homepage: geckoRes?.links?.homepage?.[0] || '',
+    whitepaper: geckoRes?.links?.whitepaper || '',
+    explorers: (geckoRes?.links?.blockchain_site || []).filter(Boolean).slice(0, 3),
+  };
+
   // Sentiment synthesis
   const upVotes = geckoRes?.sentiment_votes_up_percentage || 65;
   const downVotes = geckoRes?.sentiment_votes_down_percentage || 35;
@@ -152,6 +178,7 @@ export async function runSurveillance(query: string): Promise<SurveillanceReport
     sentimentUp: upVotes,
     isHoneypot: security.isHoneypot,
     imbalanceRatio: finalOrderBook.imbalanceRatio,
+    futures: futuresMetrics,
   });
 
   return {
@@ -184,10 +211,13 @@ export async function runSurveillance(query: string): Promise<SurveillanceReport
         classification: fearGreed.classification,
       },
     },
+    futures: futuresMetrics,
+    fundamentals,
     risk,
     lastUpdated: new Date().toISOString(),
     dataSource: {
       binance: !!tickerRes,
+      binanceFutures: futuresMetrics.hasFutures,
       dexScreener: dexPairs.length > 0,
       coingecko: !!geckoRes,
       github: devMetrics.activityStatus !== 'Unavailable',
@@ -208,6 +238,7 @@ interface RiskFactors {
   sentimentUp: number;
   isHoneypot: boolean;
   imbalanceRatio: number;
+  futures: any;
 }
 
 function calculateRiskScore(factors: RiskFactors): RiskAnalysis {
@@ -218,10 +249,13 @@ function calculateRiskScore(factors: RiskFactors): RiskAnalysis {
   let liquidityScore = 15;
   if (factors.hasBinanceListing) {
     liquidityScore += 8;
-    greenFlags.push('Tier-1 Centralized Exchange (Binance) liquidity verified');
+    greenFlags.push('Tier-1 Centralized Exchange (Binance) spot liquidity verified');
+  }
+  if (factors.futures?.hasFutures && factors.futures?.openInterestUsd > 100000000) {
+    liquidityScore += 2;
+    greenFlags.push(`Massive Derivatives Open Interest ($${(factors.futures.openInterestUsd / 1e9).toFixed(2)}B) provides institutional depth`);
   }
   if (factors.totalDexLiquidity > 1000000) {
-    liquidityScore += 2;
     greenFlags.push('Substantial DEX liquidity (> $1M) across multi-chain pools');
   } else if (!factors.hasBinanceListing && factors.totalDexLiquidity < 50000) {
     liquidityScore = Math.max(2, liquidityScore - 10);
@@ -261,26 +295,45 @@ function calculateRiskScore(factors: RiskFactors): RiskAnalysis {
     devScore = 5;
     redFlags.push(`Development dormant: No commits for ${factors.daysSinceCommit} days`);
   } else {
-    devScore = 12; // Unavailable
+    devScore = 12;
   }
 
-  // 4. Sentiment & Order Flow (0-25)
+  // 4. Sentiment & Derivatives Order Flow (0-25)
   let sentimentScore = 15;
   if (factors.sentimentUp > 70) {
-    sentimentScore += 5;
+    sentimentScore += 3;
     greenFlags.push('Strong positive community bias (>70% bullish sentiment)');
   } else if (factors.sentimentUp < 40) {
-    sentimentScore -= 5;
+    sentimentScore -= 3;
     redFlags.push('Bearish community outlook (<40% positive sentiment)');
   }
 
-  if (factors.imbalanceRatio > 1.2) {
-    sentimentScore += 3;
-    greenFlags.push(`Buy volume dominance on order book (Ratio: ${factors.imbalanceRatio.toFixed(2)})`);
-  } else if (factors.imbalanceRatio < 0.8) {
-    sentimentScore -= 3;
-    redFlags.push(`Sell pressure dominating order book (Ratio: ${factors.imbalanceRatio.toFixed(2)})`);
+  // Derivatives Smart Money Signals
+  if (factors.futures?.hasFutures) {
+    const topPos = factors.futures.topLongShortPositionRatio;
+    const taker = factors.futures.takerBuySell;
+
+    if (topPos?.longPercent > 60) {
+      sentimentScore += 4;
+      greenFlags.push(`Top Traders (Whales) are heavily Long (${topPos.longPercent}% of positions)`);
+    } else if (topPos?.shortPercent > 60) {
+      sentimentScore -= 4;
+      redFlags.push(`Top Traders (Whales) are heavily Short (${topPos.shortPercent}% of positions)`);
+    }
+
+    if (taker?.buyPercent > 55) {
+      greenFlags.push(`Taker Buy Aggression: ${taker.buyPercent}% of market orders are aggressive buys`);
+    } else if (taker?.sellPercent > 55) {
+      redFlags.push(`Taker Sell Aggression: ${taker.sellPercent}% of market orders are aggressive sells`);
+    }
+
+    if (factors.futures.squeezeRisk === 'HIGH SHORT SQUEEZE RISK') {
+      greenFlags.push('Short Squeeze Setup: High Short positioning with negative funding rate detected');
+    } else if (factors.futures.squeezeRisk === 'HIGH LONG LIQUIDATION RISK') {
+      redFlags.push('Long Cascade Risk: Over-leveraged long positions with elevated positive funding rate');
+    }
   }
+
   sentimentScore = Math.min(25, Math.max(0, sentimentScore));
 
   // Critical Honeypot Penalty

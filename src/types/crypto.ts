@@ -35,6 +35,9 @@ export interface KlinePoint {
   low: number;
   close: number;
   volume: number;
+  rsi?: number;
+  ema20?: number;
+  ema50?: number;
 }
 
 export interface DexPair {
@@ -93,6 +96,57 @@ export interface SocialSentiment {
   };
 }
 
+export interface FuturesMetrics {
+  hasFutures: boolean;
+  markPrice: number;
+  indexPrice: number;
+  openInterest: number;
+  openInterestUsd: number;
+  openInterestChange24h: number;
+  openInterestHistory: { time: number; value: number }[];
+  fundingRate: number;
+  fundingRatePercent: number;
+  annualizedFundingRate: number;
+  nextFundingTime: number;
+  fundingCountdown: string;
+  fundingPayer: 'Longs Pay Shorts' | 'Shorts Pay Longs' | 'Neutral';
+  topLongShortPositionRatio: {
+    ratio: number;
+    longPercent: number;
+    shortPercent: number;
+  };
+  topLongShortAccountRatio: {
+    ratio: number;
+    longPercent: number;
+    shortPercent: number;
+  };
+  globalLongShortAccountRatio: {
+    ratio: number;
+    longPercent: number;
+    shortPercent: number;
+  };
+  takerBuySell: {
+    ratio: number;
+    buyVol: number;
+    sellVol: number;
+    buyPercent: number;
+    sellPercent: number;
+  };
+  squeezeRisk: 'HIGH SHORT SQUEEZE RISK' | 'HIGH LONG LIQUIDATION RISK' | 'BALANCED / NEUTRAL';
+}
+
+export interface CoinFundamentals {
+  description: string;
+  categories: string[];
+  hashingAlgorithm?: string;
+  genesisDate?: string;
+  maxSupply?: number | null;
+  circulatingPercent: number;
+  homepage?: string;
+  whitepaper?: string;
+  explorers: string[];
+}
+
 export interface RiskAnalysis {
   overallScore: number; // 0 - 100 (100 is safest / strongest)
   healthGrade: 'A+' | 'A' | 'B' | 'C' | 'D' | 'F';
@@ -137,10 +191,13 @@ export interface SurveillanceReport {
   security: ContractSecurity;
   devMetrics: DevMetrics;
   sentiment: SocialSentiment;
+  futures: FuturesMetrics;
+  fundamentals: CoinFundamentals;
   risk: RiskAnalysis;
   lastUpdated: string;
   dataSource: {
     binance: boolean;
+    binanceFutures: boolean;
     dexScreener: boolean;
     coingecko: boolean;
     github: boolean;
