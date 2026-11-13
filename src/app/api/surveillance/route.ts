@@ -10,7 +10,9 @@ export async function GET(request: NextRequest) {
     const report = await runSurveillance(coin, interval);
     return NextResponse.json(report, {
       headers: {
-        'Cache-Control': 'public, s-maxage=10, stale-while-revalidate=30',
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+        'Pragma': 'no-cache',
+        'Expires': '0',
       },
     });
   } catch (err: any) {

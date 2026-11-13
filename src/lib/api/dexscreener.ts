@@ -1,9 +1,11 @@
 import { DexPair } from '@/types/crypto';
 
 export async function fetchDexPairs(query: string): Promise<DexPair[]> {
+  const cleanQ = query.trim().toUpperCase();
+
   try {
     const res = await fetch(`https://api.dexscreener.com/latest/dex/search?q=${encodeURIComponent(query)}`, {
-      next: { revalidate: 20 },
+      next: { revalidate: 10 },
       headers: { 'Accept': 'application/json' },
     });
 
@@ -12,9 +14,26 @@ export async function fetchDexPairs(query: string): Promise<DexPair[]> {
     const data = await res.json();
     if (!data.pairs || !Array.isArray(data.pairs)) return [];
 
-    // Filter top pairs sorted by liquidity
-    const sorted = data.pairs
-      .filter((p: any) => p && p.baseToken && p.quoteToken)
+    // Filter strictly to avoid scam/spoofed meme coins matching generic terms
+    const filtered = data.pairs.filter((p: any) => {
+      if (!p || !p.baseToken || !p.quoteToken) return false;
+      const baseSym = (p.baseToken.symbol || '').toUpperCase();
+      const baseName = (p.baseToken.name || '').toUpperCase();
+
+      // Exact symbol match, or wrapped version (e.g. WBTC for BTC), or exact name match
+      return (
+        baseSym === cleanQ ||
+        baseSym === `W${cleanQ}` ||
+        baseSym === `${cleanQ}USDT` ||
+        baseName === cleanQ
+      );
+    });
+
+    // If strict filter found matches, use those; otherwise use all valid pairs
+    const targetPairs = filtered.length > 0 ? filtered : data.pairs.filter((p: any) => p && p.baseToken && p.quoteToken);
+
+    // Sort by liquidity USD
+    const sorted = targetPairs
       .sort((a: any, b: any) => (b.liquidity?.usd || 0) - (a.liquidity?.usd || 0))
       .slice(0, 10);
 

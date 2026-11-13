@@ -18,6 +18,8 @@ export interface CoinGeckoCoinData {
     max_supply?: number;
     ath?: { usd?: number };
     ath_change_percentage?: { usd?: number };
+    high_24h?: { usd?: number };
+    low_24h?: { usd?: number };
     price_change_percentage_24h?: number;
   };
   sentiment_votes_up_percentage?: number;

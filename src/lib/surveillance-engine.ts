@@ -21,7 +21,7 @@ export async function runSurveillance(query: string, interval = '1h'): Promise<S
   const geckoId = preset ? preset.coingeckoId : cleanQuery.toLowerCase();
   const githubRepo = preset ? preset.githubRepo : '';
 
-  // Execute multi-API parallel fetch (including Binance Futures!)
+  // Execute multi-API parallel fetch
   const [tickerRes, depthRes, klinesRes, dexPairs, geckoRes, fearGreed, futuresMetrics] = await Promise.all([
     fetchBinanceTicker(coinSymbol),
     fetchBinanceDepth(coinSymbol),
@@ -32,7 +32,7 @@ export async function runSurveillance(query: string, interval = '1h'): Promise<S
     fetchBinanceFuturesMetrics(coinSymbol),
   ]);
 
-  // Determine GitHub repo to inspect: either preset or from CoinGecko links
+  // Determine GitHub repo
   let repoToInspect = githubRepo || '';
   if (!repoToInspect && geckoRes?.links?.repos_url?.github?.length) {
     const rawUrl = geckoRes.links.repos_url.github[0];
@@ -42,19 +42,42 @@ export async function runSurveillance(query: string, interval = '1h'): Promise<S
 
   const devMetrics = await fetchGithubMetrics(repoToInspect);
 
-  // Fallback ticker if Binance spot does not list this token
+  // ACCURATE PRICE HIERARCHY:
+  // 1. CEX Spot Ticker (Binance / Binance.US / Bybit)
+  // 2. CoinGecko Global Volume-Weighted Average Price
+  // 3. Verified DEX Pool Price (DexScreener)
   const topDexPair = dexPairs[0];
-  const derivedPrice = tickerRes?.price || (topDexPair ? parseFloat(topDexPair.priceUsd) : geckoRes?.market_data?.current_price?.usd || 0);
-  const derivedChangePercent = tickerRes?.priceChangePercent24h ?? (topDexPair?.priceChange24h ?? geckoRes?.market_data?.price_change_percentage_24h ?? 0);
-  const derivedVolume = tickerRes?.quoteVolume24h || (topDexPair?.volume24h || geckoRes?.market_data?.total_volume?.usd || 0);
+  const geckoPrice = geckoRes?.market_data?.current_price?.usd;
+  const dexPrice = topDexPair ? parseFloat(topDexPair.priceUsd) : 0;
+
+  const derivedPrice = tickerRes?.price || (geckoPrice && geckoPrice > 0 ? geckoPrice : dexPrice);
+  const derivedChangePercent =
+    tickerRes?.priceChangePercent24h ??
+    geckoRes?.market_data?.price_change_percentage_24h ??
+    (topDexPair?.priceChange24h ?? 0);
+
+  const derivedVolume =
+    tickerRes?.quoteVolume24h ||
+    geckoRes?.market_data?.total_volume?.usd ||
+    (topDexPair?.volume24h ?? 0);
+
+  const derivedHigh =
+    tickerRes?.high24h ||
+    geckoRes?.market_data?.high_24h?.usd ||
+    derivedPrice * 1.05;
+
+  const derivedLow =
+    tickerRes?.low24h ||
+    geckoRes?.market_data?.low_24h?.usd ||
+    derivedPrice * 0.95;
 
   const fallbackTicker = {
     symbol: coinSymbol,
     price: derivedPrice,
-    priceChange24h: tickerRes?.priceChange24h || 0,
+    priceChange24h: tickerRes?.priceChange24h || (derivedPrice * (derivedChangePercent / 100)),
     priceChangePercent24h: derivedChangePercent,
-    high24h: tickerRes?.high24h || derivedPrice * 1.05,
-    low24h: tickerRes?.low24h || derivedPrice * 0.95,
+    high24h: derivedHigh,
+    low24h: derivedLow,
     volume24h: tickerRes?.volume24h || (derivedPrice > 0 ? derivedVolume / derivedPrice : 0),
     quoteVolume24h: derivedVolume,
     bidPrice: tickerRes?.bidPrice || derivedPrice * 0.999,
@@ -149,7 +172,7 @@ export async function runSurveillance(query: string, interval = '1h'): Promise<S
   const circulatingPercent = maxSupply && maxSupply > 0 ? Math.min(100, (circulatingSupply / maxSupply) * 100) : 100;
 
   const fundamentals: CoinFundamentals = {
-    description: cleanDescription || `${coinName} (${coinSymbol}) is a prominent decentralized digital asset traded across global spot and derivatives exchanges.`,
+    description: cleanDescription || `${coinName} (${coinSymbol}) is a decentralized digital asset traded across global spot and derivatives exchanges.`,
     categories: geckoRes?.categories || ['Cryptocurrency', 'Layer 1 / Ecosystem'],
     hashingAlgorithm: geckoRes?.hashing_algorithm || 'Decentralized Consensus',
     genesisDate: geckoRes?.genesis_date || 'Established',
@@ -249,11 +272,11 @@ function calculateRiskScore(factors: RiskFactors): RiskAnalysis {
   let liquidityScore = 15;
   if (factors.hasBinanceListing) {
     liquidityScore += 8;
-    greenFlags.push('Tier-1 Centralized Exchange (Binance) spot liquidity verified');
+    greenFlags.push('Tier-1 Centralized Exchange spot liquidity verified');
   }
-  if (factors.futures?.hasFutures && factors.futures?.openInterestUsd > 100000000) {
+  if (factors.futures?.hasFutures && factors.futures?.openInterestUsd > 10000000) {
     liquidityScore += 2;
-    greenFlags.push(`Massive Derivatives Open Interest ($${(factors.futures.openInterestUsd / 1e9).toFixed(2)}B) provides institutional depth`);
+    greenFlags.push(`Active Derivatives Open Interest ($${(factors.futures.openInterestUsd / 1e6).toFixed(1)}M) verified`);
   }
   if (factors.totalDexLiquidity > 1000000) {
     greenFlags.push('Substantial DEX liquidity (> $1M) across multi-chain pools');
@@ -308,7 +331,6 @@ function calculateRiskScore(factors: RiskFactors): RiskAnalysis {
     redFlags.push('Bearish community outlook (<40% positive sentiment)');
   }
 
-  // Derivatives Smart Money Signals
   if (factors.futures?.hasFutures) {
     const topPos = factors.futures.topLongShortPositionRatio;
     const taker = factors.futures.takerBuySell;
@@ -336,7 +358,6 @@ function calculateRiskScore(factors: RiskFactors): RiskAnalysis {
 
   sentimentScore = Math.min(25, Math.max(0, sentimentScore));
 
-  // Critical Honeypot Penalty
   if (factors.isHoneypot) {
     liquidityScore = 0;
     volatilityScore = 0;

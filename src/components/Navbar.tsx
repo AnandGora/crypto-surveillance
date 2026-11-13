@@ -145,16 +145,18 @@ export function Navbar({
             </div>
           )}
 
-          {/* Refresh interval dropdown */}
+          {/* Refresh interval dropdown with 1s and 3s options */}
           <select
             value={refreshInterval}
             onChange={(e) => onSetRefreshInterval(Number(e.target.value))}
-            className="rounded-lg border border-zinc-800 bg-zinc-900 px-2 py-1.5 text-xs text-zinc-300 focus:border-cyan-500 focus:outline-none"
-            title="Auto-refresh interval"
+            className="rounded-lg border border-zinc-800 bg-zinc-900 px-2.5 py-1.5 text-xs font-semibold text-cyan-400 focus:border-cyan-500 focus:outline-none"
+            title="Auto-refresh streaming interval"
           >
-            <option value={15}>15s Auto</option>
-            <option value={30}>30s Auto</option>
-            <option value={60}>60s Auto</option>
+            <option value={1}>⚡ 1s Live</option>
+            <option value={3}>🚀 3s Fast</option>
+            <option value={5}>5s</option>
+            <option value={10}>10s</option>
+            <option value={30}>30s</option>
             <option value={0}>Manual</option>
           </select>
 

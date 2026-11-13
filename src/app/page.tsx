@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Navbar } from '@/components/Navbar';
 import { TickerBar } from '@/components/TickerBar';
 import { CoinHeader } from '@/components/CoinHeader';
@@ -26,7 +26,7 @@ export default function SurveillancePage() {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isNewsLoading, setIsNewsLoading] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'futures' | 'chart' | 'depth' | 'dex' | 'fundamentals' | 'dev' | 'sentiment' | 'news'>('overview');
-  const [refreshInterval, setRefreshInterval] = useState<number>(30); // 30s default
+  const [refreshInterval, setRefreshInterval] = useState<number>(3); // 3s fast default (options: 1s, 3s, 5s, 10s, 30s)
   const [isWatchlistOpen, setIsWatchlistOpen] = useState<boolean>(false);
   const [watchlist, setWatchlist] = useState<WatchlistCoin[]>([]);
   const [quickTickers, setQuickTickers] = useState<{ [symbol: string]: { price: number; change24h: number } }>({});
@@ -74,13 +74,15 @@ export default function SurveillancePage() {
 
   const isCurrentWatchlisted = report ? watchlist.some((w) => w.symbol === report.coin.symbol) : false;
 
-  // Fetch Surveillance Report
-  const loadSurveillance = useCallback(async (coinSymbol: string, interval = currentInterval) => {
-    setIsLoading(true);
+  // Fetch Surveillance Report (with silent background polling support to prevent UI flashing)
+  const loadSurveillance = useCallback(async (coinSymbol: string, interval = currentInterval, silent = false) => {
+    if (!silent) {
+      setIsLoading(true);
+    }
     setErrorMessage(null);
 
     try {
-      const res = await fetch(`/api/surveillance?coin=${encodeURIComponent(coinSymbol)}&interval=${interval}`);
+      const res = await fetch(`/api/surveillance?coin=${encodeURIComponent(coinSymbol)}&interval=${interval}&_t=${Date.now()}`);
       if (!res.ok) {
         throw new Error(`Surveillance request failed with status ${res.status}`);
       }
@@ -96,9 +98,13 @@ export default function SurveillancePage() {
       }));
     } catch (err: any) {
       console.error('Surveillance fetch error:', err);
-      setErrorMessage(err?.message || 'Error fetching surveillance data');
+      if (!silent) {
+        setErrorMessage(err?.message || 'Error fetching surveillance data');
+      }
     } finally {
-      setIsLoading(false);
+      if (!silent) {
+        setIsLoading(false);
+      }
     }
   }, [currentInterval]);
 
@@ -118,18 +124,18 @@ export default function SurveillancePage() {
     }
   }, []);
 
-  // Initial load
+  // Initial load or user change
   useEffect(() => {
-    loadSurveillance(selectedCoin, currentInterval);
+    loadSurveillance(selectedCoin, currentInterval, false);
     loadNews();
   }, [selectedCoin, currentInterval, loadSurveillance, loadNews]);
 
-  // Auto-refresh interval polling
+  // Ultra-Fast Auto-refresh interval polling (1s / 3s / 5s)
   useEffect(() => {
     if (refreshInterval <= 0) return;
 
     const timer = setInterval(() => {
-      loadSurveillance(selectedCoin, currentInterval);
+      loadSurveillance(selectedCoin, currentInterval, true);
     }, refreshInterval * 1000);
 
     return () => clearInterval(timer);
@@ -141,7 +147,7 @@ export default function SurveillancePage() {
       <Navbar
         currentSymbol={selectedCoin}
         onSelectCoin={(sym) => setSelectedCoin(sym)}
-        onRefresh={() => loadSurveillance(selectedCoin, currentInterval)}
+        onRefresh={() => loadSurveillance(selectedCoin, currentInterval, false)}
         isLoading={isLoading}
         refreshInterval={refreshInterval}
         onSetRefreshInterval={(val) => setRefreshInterval(val)}
@@ -384,9 +390,9 @@ export default function SurveillancePage() {
         ) : (
           <div className="flex h-96 flex-col items-center justify-center text-center">
             <RefreshCw className="h-8 w-8 animate-spin text-cyan-400 mb-3" />
-            <h3 className="text-lg font-bold text-white">Gathering Multi-Source Surveillance Metrics...</h3>
+            <h3 className="text-lg font-bold text-white">Connecting Real-Time Exchange Feeds...</h3>
             <p className="text-xs text-zinc-500 mt-1 max-w-sm">
-              Connecting Binance Spot & Futures, DexScreener, CoinGecko, and GitHub API
+              Polling live order books, futures metrics, and global market prices
             </p>
           </div>
         )}
@@ -411,10 +417,10 @@ export default function SurveillancePage() {
           </div>
           <div className="flex items-center gap-4 text-zinc-400">
             <span>Binance Spot & Futures</span>
-            <span>DexScreener</span>
+            <span>Bybit</span>
             <span>CoinGecko</span>
+            <span>DexScreener</span>
             <span>GitHub</span>
-            <span>Cointelegraph</span>
           </div>
         </div>
       </footer>
