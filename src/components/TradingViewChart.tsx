@@ -37,7 +37,7 @@ export function TradingViewChart({ symbol, isBinanceAvailable = true, dexPairs =
   };
 
   const [selectedExchange, setSelectedExchange] = useState<SupportedExchange>(getInitialExchange);
-  const [contractType, setContractType] = useState<'spot' | 'perp'>('spot');
+  const [contractType, setContractType] = useState<'spot' | 'perp'>('perp'); // Default to Binance Futures Perpetual
   const [selectedDexIndex, setSelectedDexIndex] = useState<number>(0);
 
   // Update exchange when coin changes

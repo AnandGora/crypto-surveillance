@@ -3,6 +3,8 @@
 import React from 'react';
 import { Zap, TrendingUp, TrendingDown, Clock, Users, Flame, BarChart2, AlertCircle, ArrowUpRight } from 'lucide-react';
 import { FuturesMetrics } from '@/types/crypto';
+import { LiquidationWalls } from './LiquidationWalls';
+import { WhaleRetailPositions } from './WhaleRetailPositions';
 
 interface FuturesSurveillanceProps {
   futures: FuturesMetrics;
@@ -264,6 +266,16 @@ export function FuturesSurveillance({ futures, symbol }: FuturesSurveillanceProp
             />
           </div>
         </div>
+      </div>
+
+      {/* Whale vs Retail Positions & Long/Short Differential */}
+      <div className="mt-6">
+        <WhaleRetailPositions futures={futures} symbol={symbol} />
+      </div>
+
+      {/* Liquidation Walls Ladder */}
+      <div className="mt-6">
+        <LiquidationWalls futures={futures} symbol={symbol} />
       </div>
     </div>
   );
