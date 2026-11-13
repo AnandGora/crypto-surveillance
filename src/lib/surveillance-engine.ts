@@ -225,32 +225,76 @@ export async function runSurveillance(query: string, interval = '1h'): Promise<S
   const baseOi =
     futuresMetrics.hasFutures && futuresMetrics.openInterestUsd > 0
       ? futuresMetrics.openInterestUsd
-      : 43730000;
+      : Math.max(finalTicker.quoteVolume24h * 0.25, 43730000);
 
-  const shortClusterVol = Math.round(baseOi * 0.0022);
-  const longClusterVol = Math.round(baseOi * 0.0009);
-
-  const totalLiqUsd = Math.round(Math.max(120000, baseOi * 0.0443));
+  // Total 24h liquidations estimate (proportional to derivatives turnover & volatility)
+  const totalLiqUsd = Math.round(
+    Math.max(
+      baseOi * 0.045,
+      finalTicker.quoteVolume24h * 0.015,
+      120000
+    )
+  );
   const longLiqPct = finalTicker.priceChangePercent24h < 0 ? 74 : 26;
   const shortLiqPct = 100 - longLiqPct;
   const longLiqUsd = Math.round(totalLiqUsd * (longLiqPct / 100));
   const shortLiqUsd = totalLiqUsd - longLiqUsd;
 
-  const formatClusterLabel = (val: number) =>
-    val >= 1000000 ? `$${(val / 1000000).toFixed(2)}M` : `$${(val / 1000).toFixed(1)}K`;
+  // Key cluster depth: A major liquidation wall typically concentrates 35% - 65% of that side's liquidation pool
+  const shortClusterVol = Math.round(
+    Math.max(
+      shortLiqUsd * 0.65,
+      baseOi * 0.025,
+      finalTicker.quoteVolume24h * 0.01,
+      45000
+    )
+  );
+
+  const longClusterVol = Math.round(
+    Math.max(
+      longLiqUsd * 0.65,
+      baseOi * 0.025,
+      finalTicker.quoteVolume24h * 0.01,
+      35000
+    )
+  );
+
+  const formatClusterLabel = (val: number) => {
+    if (val >= 1e9) return `$${(val / 1e9).toFixed(2)}B`;
+    if (val >= 1e6) return `$${(val / 1e6).toFixed(2)}M`;
+    if (val >= 1e3) return `$${(val / 1e3).toFixed(1)}K`;
+    return `$${Math.round(val).toLocaleString()}`;
+  };
+
+  const getClusterIntensity = (vol: number) => {
+    if (vol >= 50000000) return 'EXTREME';
+    if (vol >= 5000000) return 'VERY HIGH';
+    if (vol >= 500000) return 'HIGH';
+    if (vol >= 100000) return 'SIGNIFICANT';
+    if (vol >= 25000) return 'MODERATE';
+    return 'LIGHT';
+  };
+
+  const formatCoinPrice = (p: number) => {
+    if (p >= 1000) return p.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    if (p >= 1) return p.toFixed(2);
+    if (p >= 0.01) return p.toFixed(4);
+    if (p >= 0.0001) return p.toFixed(6);
+    return p.toFixed(8);
+  };
 
   const liquidationData: LiquidationData = {
     shortCluster: {
       price: shortClusterPrice,
       percentFromCurrent: shortDistPct,
       volumeUsd: shortClusterVol,
-      intensityLabel: formatClusterLabel(shortClusterVol),
+      intensityLabel: `${formatClusterLabel(shortClusterVol)} (${getClusterIntensity(shortClusterVol)})`,
     },
     longCluster: {
       price: longClusterPrice,
       percentFromCurrent: longDistPct,
       volumeUsd: longClusterVol,
-      intensityLabel: formatClusterLabel(longClusterVol),
+      intensityLabel: `${formatClusterLabel(longClusterVol)} (${getClusterIntensity(longClusterVol)})`,
     },
     totalLiquidations24hUsd: totalLiqUsd,
     longLiquidationUsd: longLiqUsd,
@@ -262,7 +306,11 @@ export async function runSurveillance(query: string, interval = '1h'): Promise<S
   // 2. Automated AI Market Narrative ("Why is Coin down/up today?")
   const isUp = finalTicker.priceChangePercent24h >= 0;
   const absChange = Math.abs(finalTicker.priceChangePercent24h).toFixed(2);
-  const formattedPrice = currentPrice < 0.01 ? currentPrice.toFixed(6) : currentPrice.toFixed(2);
+  const formattedPrice = formatCoinPrice(currentPrice);
+
+  const estimatedSpotNetFlow = Math.round(
+    Math.max(25000, finalTicker.quoteVolume24h * 0.06)
+  );
 
   const aiNarrative: AiMarketNarrative = {
     title: `Why is ${coinName} (${coinSymbol}) ${isUp ? 'up' : 'down'} today?`,
@@ -303,12 +351,12 @@ export async function runSurveillance(query: string, interval = '1h'): Promise<S
       },
       {
         label: 'Spot Net Flows',
-        value: isUp ? '+$1.45M Net Inflow' : '-$870.07K Net Outflow',
+        value: `${isUp ? '+' : '-'}${formatClusterLabel(estimatedSpotNetFlow)} Net ${isUp ? 'Inflow' : 'Outflow'}`,
         status: isUp ? 'bullish' : 'bearish',
         detail: isUp ? 'Spot accumulation dominating order book' : 'Spot taker selling exceeds spot buying',
       },
     ],
-    whatToWatchNext: `What to watch next: $${shortClusterPrice < 0.01 ? shortClusterPrice.toFixed(6) : shortClusterPrice.toFixed(2)} above (+${shortDistPct.toFixed(1)}%) has a short liquidation cluster; $${longClusterPrice < 0.01 ? longClusterPrice.toFixed(6) : longClusterPrice.toFixed(2)} below (${longDistPct.toFixed(1)}%) has a long liquidation cluster.`,
+    whatToWatchNext: `What to watch next: $${formatCoinPrice(shortClusterPrice)} above (+${shortDistPct.toFixed(1)}%) has a short liquidation cluster; $${formatCoinPrice(longClusterPrice)} below (${longDistPct.toFixed(1)}%) has a long liquidation cluster.`,
   };
 
   // 3. Multi-Exchange Futures & Spot Markets Table

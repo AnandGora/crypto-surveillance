@@ -41,9 +41,20 @@ export function CoinGlassIntelligence({ report, onOpenAiModal }: CoinGlassIntell
   const numericAmount = parseFloat(tokenAmount) || 0;
   const convertedUsd = (numericAmount * ticker.price).toFixed(ticker.price < 0.01 ? 4 : 2);
 
-  const formatPrice = (p: number) => (p < 0.01 ? p.toFixed(6) : p.toFixed(4));
-  const formatCompact = (val: number) =>
-    val >= 1e6 ? `$${(val / 1e6).toFixed(2)}M` : val >= 1e3 ? `$${(val / 1e3).toFixed(1)}K` : `$${val.toFixed(2)}`;
+  const formatPrice = (p: number) => {
+    if (p >= 1000) return p.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    if (p >= 1) return p.toFixed(2);
+    if (p >= 0.01) return p.toFixed(4);
+    if (p >= 0.0001) return p.toFixed(6);
+    return p.toFixed(8);
+  };
+
+  const formatCompact = (val: number) => {
+    if (val >= 1e9) return `$${(val / 1e9).toFixed(2)}B`;
+    if (val >= 1e6) return `$${(val / 1e6).toFixed(2)}M`;
+    if (val >= 1e3) return `$${(val / 1e3).toFixed(1)}K`;
+    return `$${Math.round(val).toLocaleString()}`;
+  };
 
   const dynamicShortClusterPrice = ticker.price * (1 + Math.abs(l.shortCluster.percentFromCurrent) / 100);
   const dynamicLongClusterPrice = ticker.price * (1 - Math.abs(l.longCluster.percentFromCurrent) / 100);
@@ -126,7 +137,7 @@ export function CoinGlassIntelligence({ report, onOpenAiModal }: CoinGlassIntell
           </div>
 
           <div className="mt-4 pt-3 border-t border-zinc-800/60 flex items-center justify-between text-[11px] text-zinc-400">
-            <span>24h Total Liq: <strong className="text-white">${(l.totalLiquidations24hUsd / 1e6).toFixed(2)}M</strong></span>
+            <span>24h Total Liq: <strong className="text-white">{formatCompact(l.totalLiquidations24hUsd)}</strong></span>
             <span className="text-rose-400">Longs {l.longLiquidationPercent}%</span>
             <span className="text-emerald-400">Shorts {l.shortLiquidationPercent}%</span>
           </div>
