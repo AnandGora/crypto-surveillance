@@ -184,6 +184,98 @@ export default function SurveillancePage() {
     return () => clearInterval(timer);
   }, [refreshInterval, selectedCoin, currentInterval, loadSurveillance]);
 
+  // Bulk Quick Radar & Watchlist Ticker Synchronizer
+  useEffect(() => {
+    let isCancelled = false;
+
+    const fetchAllQuickTickers = async () => {
+      try {
+        // 1. Fetch bulk Binance Futures 24hr tickers (single request for 800+ symbols)
+        const res = await fetch('https://fapi.binance.com/fapi/v1/ticker/24hr');
+        if (res.ok && !isCancelled) {
+          const list = await res.json();
+          const tickerMap: { [symbol: string]: { price: number; change24h: number } } = {};
+
+          if (Array.isArray(list)) {
+            for (const item of list) {
+              const sym = item.symbol.replace(/USDT$/, '').replace(/^1000/, '');
+              tickerMap[sym] = {
+                price: parseFloat(item.lastPrice || '0'),
+                change24h: parseFloat(item.priceChangePercent || '0'),
+              };
+            }
+          }
+
+          // 2. Fetch for any Watchlist or Quick Radar coin not on Binance Futures (e.g. JCT on MEXC)
+          const allWatchlistSymbols = watchlist.map((w) => w.symbol.toUpperCase());
+          const missingWatchlistCoins = allWatchlistSymbols.filter((sym) => !tickerMap[sym]);
+
+          for (const mSym of missingWatchlistCoins) {
+            try {
+              const mexcRes = await fetch(
+                `https://api.mexc.com/api/v3/ticker/24hr?symbol=${mSym}USDT`
+              );
+              if (mexcRes.ok) {
+                const mexcData = await mexcRes.json();
+                if (mexcData && mexcData.lastPrice) {
+                  tickerMap[mSym] = {
+                    price: parseFloat(mexcData.lastPrice),
+                    change24h: parseFloat(mexcData.priceChangePercent || '0') * 100,
+                  };
+                }
+              }
+            } catch (e) {}
+          }
+
+          setQuickTickers((prev) => ({
+            ...prev,
+            ...tickerMap,
+          }));
+
+          // 3. Keep watchlist in localStorage & state synced with live refreshed prices
+          setWatchlist((prevWatchlist) => {
+            let hasChanged = false;
+            const updated = prevWatchlist.map((item) => {
+              const clean = item.symbol.toUpperCase();
+              const live = tickerMap[clean];
+              if (
+                live &&
+                live.price > 0 &&
+                (Math.abs(live.price - item.price) > 0.000001 ||
+                  Math.abs(live.change24h - item.change24h) > 0.1)
+              ) {
+                hasChanged = true;
+                return {
+                  ...item,
+                  price: live.price,
+                  change24h: live.change24h,
+                };
+              }
+              return item;
+            });
+            if (hasChanged) {
+              try {
+                localStorage.setItem('crypto_eye_watchlist', JSON.stringify(updated));
+              } catch (e) {}
+              return updated;
+            }
+            return prevWatchlist;
+          });
+        }
+      } catch (e) {
+        console.warn('Failed to bulk sync quick tickers', e);
+      }
+    };
+
+    fetchAllQuickTickers();
+    const interval = setInterval(fetchAllQuickTickers, 3000);
+
+    return () => {
+      isCancelled = true;
+      clearInterval(interval);
+    };
+  }, [watchlist.length]);
+
   // Live Binance Futures Ticker Synchronizer (Zero price difference with live Binance!)
   useEffect(() => {
     if (!selectedCoin) return;
@@ -317,6 +409,8 @@ export default function SurveillancePage() {
         currentSymbol={selectedCoin}
         onSelectCoin={(sym) => setSelectedCoin(sym)}
         quickTickers={quickTickers}
+        watchlist={watchlist}
+        onOpenRadar={() => setIsWatchlistOpen(true)}
       />
 
       {/* Main Surveillance Container */}
